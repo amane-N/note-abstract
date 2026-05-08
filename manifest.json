@@ -12,6 +12,8 @@
     {
       "matches": ["https://note.com/*/n/*"],
       "js": [
+        "src/lib/crypto.js",
+        "src/lib/storage.js",
         "src/lib/note-parser.js",
         "src/lib/nano-summarizer.js",
         "src/content/side-panel.js",

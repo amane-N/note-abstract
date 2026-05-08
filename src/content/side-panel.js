@@ -193,6 +193,57 @@
       color: #94a3b8;
       margin-top: 4px;
     }
+    .settings-section { margin-bottom: 18px; }
+    .settings-section h3 { margin: 0 0 6px; }
+    .settings-section .lead {
+      font-size: 12px;
+      color: #475569;
+      margin: 0 0 8px;
+    }
+    .api-key-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      background: #fff7ed;
+      color: #b45309;
+      border: 1px solid #fed7aa;
+    }
+    .api-key-status[data-state='set'] {
+      background: #ecfdf5;
+      color: #047857;
+      border-color: #a7f3d0;
+    }
+    .api-key-status[data-state='unknown'] {
+      background: #f1f5f9;
+      color: #475569;
+      border-color: #e2e8f0;
+    }
+    .api-key-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      flex: 0 0 auto;
+    }
+    .open-options-btn {
+      appearance: none;
+      border: 1px solid #1a73e8;
+      background: #1a73e8;
+      color: #ffffff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .open-options-btn:hover { background: #155bbb; border-color: #155bbb; }
+    .open-options-btn:focus-visible {
+      outline: 2px solid #93c5fd;
+      outline-offset: 2px;
+    }
   `;
 
   class SidePanel {
@@ -258,7 +309,17 @@
             <div class="placeholder">履歴機能は Sprint 6 で実装予定です。<div class="lock-hint">有料層で開放されます。</div></div>
           </section>
           <section class="tab-panel" data-tab="settings">
-            <div class="placeholder">設定 UI は Sprint 3 (API キー) 以降で順次実装します。</div>
+            <div class="settings-section">
+              <h3>API キー</h3>
+              <p class="lead">Google AI Studio の API キーを設定すると、Sprint 4 以降の予測・関連機能が利用できるようになります。</p>
+              <div class="api-key-status" data-role="api-key-status" data-state="unknown" role="status">
+                <span class="dot" aria-hidden="true"></span>
+                <span data-role="api-key-status-text">確認中…</span>
+              </div>
+              <div>
+                <button type="button" class="open-options-btn" data-role="open-options">設定ページを開く</button>
+              </div>
+            </div>
           </section>
         </div>
       `;
@@ -276,6 +337,9 @@
         abstract: panel.querySelector('[data-role="abstract"]'),
         keyPoints: panel.querySelector('[data-role="key-points"]'),
         fallback: panel.querySelector('[data-role="fallback"]'),
+        apiKeyStatus: panel.querySelector('[data-role="api-key-status"]'),
+        apiKeyStatusText: panel.querySelector('[data-role="api-key-status-text"]'),
+        openOptionsBtn: panel.querySelector('[data-role="open-options"]'),
       };
     }
 
@@ -288,6 +352,12 @@
           this._activateTab(btn.dataset.tab);
         });
       });
+
+      if (this.elements.openOptionsBtn) {
+        this.elements.openOptionsBtn.addEventListener('click', () => {
+          this._openOptionsPage();
+        });
+      }
 
       this._docKeyHandler = (e) => {
         if (e.key === 'Escape' && this.opened) {
@@ -352,6 +422,49 @@
       this.elements.tabPanels.forEach((sec) => {
         sec.dataset.active = String(sec.dataset.tab === id);
       });
+      if (id === 'settings') {
+        this.refreshSettings().catch((err) => {
+          console.warn('[note-abstract] refreshSettings failed', err && err.message ? err.message : err);
+        });
+      }
+    }
+
+    async refreshSettings() {
+      const statusEl = this.elements.apiKeyStatus;
+      const textEl = this.elements.apiKeyStatusText;
+      if (!statusEl || !textEl) return;
+      const ns = globalThis.__noteAbstract || {};
+      if (!ns.Storage) {
+        statusEl.dataset.state = 'unknown';
+        textEl.textContent = '設定モジュールを読み込めませんでした。';
+        return;
+      }
+      try {
+        const has = await ns.Storage.hasApiKey();
+        if (has) {
+          statusEl.dataset.state = 'set';
+          textEl.textContent = 'API キーは設定済みです。';
+        } else {
+          statusEl.dataset.state = 'empty';
+          textEl.textContent = 'API キーは未設定です。設定ページから登録してください。';
+        }
+      } catch (err) {
+        statusEl.dataset.state = 'unknown';
+        textEl.textContent = '設定状態の取得に失敗しました。';
+      }
+    }
+
+    _openOptionsPage() {
+      try {
+        if (chrome && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+          chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' }, () => {
+            // ignore response; service worker is responsible for opening the page
+            void chrome.runtime.lastError;
+          });
+        }
+      } catch (err) {
+        console.warn('[note-abstract] openOptionsPage failed', err && err.message ? err.message : err);
+      }
     }
 
     open() {

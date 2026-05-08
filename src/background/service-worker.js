@@ -25,3 +25,21 @@ chrome.action.onClicked.addListener(async (tab) => {
     console.warn(`${LOG_PREFIX} sendMessage failed`, err && err.message ? err.message : err);
   }
 });
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message && message.type === 'OPEN_OPTIONS_PAGE') {
+    try {
+      if (typeof chrome.runtime.openOptionsPage === 'function') {
+        chrome.runtime.openOptionsPage();
+        sendResponse({ ok: true });
+      } else {
+        sendResponse({ ok: false, error: 'openOptionsPage unavailable' });
+      }
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} openOptionsPage failed`, err && err.message ? err.message : err);
+      sendResponse({ ok: false, error: String(err) });
+    }
+    return true;
+  }
+  return false;
+});

@@ -8,28 +8,170 @@
       font-family: -apple-system, 'Segoe UI', sans-serif;
       max-width: 640px;
       margin: 32px auto;
-      padding: 0 24px;
+      padding: 0 24px 64px;
       color: #1a1a1a;
       line-height: 1.6;
+      background: #fafafa;
     }
     h1 {
-      font-size: 20px;
+      font-size: 22px;
       margin: 0 0 16px;
     }
-    .placeholder {
-      padding: 16px;
-      border: 1px dashed #bbb;
-      border-radius: 8px;
-      color: #666;
+    h2 {
+      font-size: 15px;
+      margin: 24px 0 8px;
+      color: #334155;
+    }
+    section.card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .lead {
       font-size: 13px;
+      color: #475569;
+      margin: 0 0 12px;
+    }
+    .field {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .field input[type="password"],
+    .field input[type="text"] {
+      flex: 1 1 auto;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .field input:focus {
+      outline: 2px solid #1a73e8;
+      outline-offset: 1px;
+    }
+    button {
+      appearance: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #1f2937;
+    }
+    button.primary {
+      background: #1a73e8;
+      color: #ffffff;
+      border-color: #1a73e8;
+    }
+    button.primary:hover { background: #155bbb; }
+    button.danger {
+      background: #ffffff;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+    button.danger:hover { background: #fee2e2; }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .status-line {
+      font-size: 13px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: #f1f5f9;
+      color: #334155;
+    }
+    .status-line[data-state='set'] {
+      background: #ecfdf5;
+      color: #047857;
+    }
+    .status-line[data-state='empty'] {
+      background: #fff7ed;
+      color: #b45309;
+    }
+    .feedback {
+      font-size: 13px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+    .feedback[data-level='info'] { background: #eff6ff; color: #1d4ed8; }
+    .feedback[data-level='success'] { background: #ecfdf5; color: #047857; }
+    .feedback[data-level='error'] { background: #fef2f2; color: #b91c1c; }
+    .feedback:empty { display: none; }
+    .help {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 8px;
+    }
+    .help a {
+      color: #1a73e8;
+    }
+    .privacy {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 16px;
     }
   </style>
 </head>
 <body>
   <h1>note アブストラクト 設定</h1>
-  <div class="placeholder">
-    APIキー設定や履歴管理は Sprint 3 以降で実装予定です。
-  </div>
+
+  <section class="card">
+    <h2>Google AI Studio API キー</h2>
+    <p class="lead">
+      Gemini API キーを設定すると、要約に加えて Sprint 4 以降で予測・関連機能が利用できます。
+      キーは端末内でのみ保管され、開発者のサーバーには一切送信されません。
+    </p>
+
+    <div id="current-status" class="status-line" data-state="empty">確認中…</div>
+
+    <form id="api-key-form" autocomplete="off">
+      <h2>キーを登録 / 更新</h2>
+      <div class="field">
+        <input
+          id="api-key-input"
+          type="password"
+          name="apiKey"
+          placeholder="AIza... で始まるキーを貼り付け"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="button" id="show-hide-btn" aria-label="表示/非表示を切り替え">表示</button>
+      </div>
+      <div class="row">
+        <button type="submit" id="validate-btn" class="primary">検証して保存</button>
+        <button type="button" id="clear-btn" class="danger" disabled>保存済みキーを削除</button>
+      </div>
+      <div id="status-box" class="feedback" role="status" aria-live="polite"></div>
+      <p class="help">
+        API キーの取得方法は
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>
+        を参照してください。
+      </p>
+    </form>
+
+    <p class="privacy">
+      ※ キーは XOR + Base64 で簡易難読化したうえで chrome.storage.local に保存されます。
+      この拡張機能は外部サーバーにキーを送信しません。
+    </p>
+  </section>
+
+  <script src="../lib/crypto.js"></script>
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/gemini-client.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
