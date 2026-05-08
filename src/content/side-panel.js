@@ -1016,6 +1016,55 @@
     markSummaryRan() {
       this._summaryRan = true;
     }
+
+    // Reset all per-article DOM state so SPA navigation to a different article
+    // doesn't leave stale content visible. User-preference state (template
+    // choice, panel width, API key) is intentionally preserved.
+    resetForNewArticle() {
+      this._summaryRan = false;
+
+      // Summary tab: back to the loading-style placeholder.
+      if (this.elements.abstract) {
+        this.elements.abstract.textContent = '新しい記事を読み込み中…';
+      }
+      if (this.elements.keyPoints) {
+        this.elements.keyPoints.innerHTML = '';
+      }
+      if (this.elements.readingTime) {
+        this.elements.readingTime.textContent = '— 読了時間';
+      }
+      if (this.elements.fallback) {
+        this.elements.fallback.hidden = true;
+        this.elements.fallback.textContent = '';
+      }
+      this.setStage('idle');
+
+      // Prediction tab.
+      this._clearPredictionError();
+      this._setPredictionLoading(false);
+      if (this.elements.predictionResult) {
+        this.elements.predictionResult.innerHTML = '';
+        const ph = document.createElement('div');
+        ph.className = 'placeholder';
+        ph.textContent = 'テンプレートを選んで「予測する」ボタンを押すと、3 セクション構造の批判的分析が表示されます。';
+        this.elements.predictionResult.appendChild(ph);
+      }
+
+      // Related tab.
+      this._clearRelatedError();
+      this._setRelatedLoading(false);
+      if (this.elements.relatedMeta) {
+        this.elements.relatedMeta.hidden = true;
+        this.elements.relatedMeta.textContent = '';
+      }
+      if (this.elements.relatedResult) {
+        this.elements.relatedResult.innerHTML = '';
+        const ph = document.createElement('div');
+        ph.className = 'placeholder';
+        ph.textContent = '「キーワードを提案」ボタンを押すと、関連キーワード 5 つと note 検索リンクが表示されます。';
+        this.elements.relatedResult.appendChild(ph);
+      }
+    }
   }
 
   ns.SidePanel = {

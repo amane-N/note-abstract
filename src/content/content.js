@@ -239,6 +239,71 @@
     }
   };
 
+  // note.com is an SPA — navigating to a different article changes the URL via
+  // history.pushState without triggering a full page reload, so content.js is
+  // not re-executed and the panel keeps showing the previous article's summary
+  // / prediction / keywords. Detect URL changes by polling location.href and
+  // reset the panel state for each new article.
+  let lastSeenUrl = null;
+  const SPA_POLL_MS = 600;
+  // Wait this long after a URL change before re-extracting the article body,
+  // to give the SPA time to swap the article DOM.
+  const SPA_RENDER_DELAY_MS = 1500;
+
+  const onSPANavigation = async (oldUrl, newUrl) => {
+    console.log(`${LOG_PREFIX} SPA navigation: ${oldUrl} → ${newUrl}`);
+
+    cachedArticle = null;
+
+    if (!panelInstance) return;
+    if (typeof panelInstance.resetForNewArticle === 'function') {
+      panelInstance.resetForNewArticle();
+    }
+
+    // If the panel is open and the new URL is still a note article, refresh
+    // the summary automatically so the user sees the new article's content
+    // without having to toggle the panel.
+    if (!panelInstance.isOpen()) return;
+    if (!isNoteArticleUrl(newUrl)) {
+      // Non-article page: leave the panel reset to placeholders.
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, SPA_RENDER_DELAY_MS));
+    // Bail out if another navigation happened during the wait — that handler
+    // will take it from here.
+    if (location.href !== newUrl) return;
+
+    panelInstance.markSummaryRan();
+    try {
+      await runSummaryWorkflow(panelInstance);
+    } catch (err) {
+      console.warn(
+        `${LOG_PREFIX} summary re-run after SPA nav failed`,
+        err && err.message ? err.message : err
+      );
+    }
+  };
+
+  const ensureUrlChangeWatcher = () => {
+    if (globalThis.__noteAbstractUrlWatcherInstalled) return;
+    globalThis.__noteAbstractUrlWatcherInstalled = true;
+    lastSeenUrl = location.href;
+
+    setInterval(() => {
+      const current = location.href;
+      if (current === lastSeenUrl) return;
+      const previous = lastSeenUrl;
+      lastSeenUrl = current;
+      onSPANavigation(previous, current).catch((err) => {
+        console.warn(
+          `${LOG_PREFIX} onSPANavigation threw`,
+          err && err.message ? err.message : err
+        );
+      });
+    }, SPA_POLL_MS);
+  };
+
   // Idempotent message-listener guard. Kept on globalThis with its own key so
   // it survives even if `__noteAbstractContentInitialized` gets cleared (e.g.
   // by a re-injection that resets state). Without this guard, executeScript
@@ -308,6 +373,7 @@
       ensureShadowHost();
       ensurePanel();
       watchHost();
+      ensureUrlChangeWatcher();
     } catch (err) {
       console.warn(
         `${LOG_PREFIX} panel bootstrap failed`,
