@@ -475,9 +475,10 @@
       this.panel.style.transform = 'translateX(0)';
       console.log(`[note-abstract] panel.open() → state=${this.panel.dataset.state}`);
 
-      // Auto-diagnostic: dump the actual rendered geometry on the next frame so
-      // the user can see exactly where the panel landed without having to paste
-      // anything in DevTools. Also flash a magenta outline on the host for 6s.
+      // Auto-diagnostic: log individual key=value lines (no expansion needed)
+      // and pop a high-contrast banner attached to <body> that does NOT depend
+      // on the shadow host — so we can tell whether the host itself is the
+      // problem or whether note.com's CSS is suppressing visibility.
       setTimeout(() => {
         try {
           const host = this.host;
@@ -485,44 +486,76 @@
           const hostRect = host && host.getBoundingClientRect();
           const cs = getComputedStyle(this.panel);
           const hcs = host && getComputedStyle(host);
-          console.log('[note-abstract] DIAG panel rect', {
-            panelLeft: Math.round(panelRect.left),
-            panelRight: Math.round(panelRect.right),
-            panelTop: Math.round(panelRect.top),
-            panelBottom: Math.round(panelRect.bottom),
-            panelW: Math.round(panelRect.width),
-            panelH: Math.round(panelRect.height),
-            panelDisplay: cs.display,
-            panelVisibility: cs.visibility,
-            panelOpacity: cs.opacity,
-            panelTransform: cs.transform,
-            hostLeft: hostRect && Math.round(hostRect.left),
-            hostRight: hostRect && Math.round(hostRect.right),
-            hostTop: hostRect && Math.round(hostRect.top),
-            hostBottom: hostRect && Math.round(hostRect.bottom),
-            hostW: hostRect && Math.round(hostRect.width),
-            hostH: hostRect && Math.round(hostRect.height),
-            hostPosition: hcs && hcs.position,
-            hostDisplay: hcs && hcs.display,
-            hostZIndex: hcs && hcs.zIndex,
-            viewportW: window.innerWidth,
-            viewportH: window.innerHeight,
-            isOnScreen:
-              panelRect.right > 0 &&
-              panelRect.left < window.innerWidth &&
-              panelRect.bottom > 0 &&
-              panelRect.top < window.innerHeight &&
-              panelRect.width > 0 &&
-              panelRect.height > 0,
-          });
+          const isOnScreen =
+            panelRect.right > 0 &&
+            panelRect.left < window.innerWidth &&
+            panelRect.bottom > 0 &&
+            panelRect.top < window.innerHeight &&
+            panelRect.width > 0 &&
+            panelRect.height > 0;
+
+          console.log('━━━━━ note-abstract DIAG START ━━━━━');
+          console.log(`[note-abstract] DIAG hostExists=${!!host}`);
+          console.log(`[note-abstract] DIAG hostConnected=${host && host.isConnected}`);
+          console.log(`[note-abstract] DIAG hostParent=${host && host.parentElement && host.parentElement.tagName}`);
+          if (hostRect) {
+            console.log(`[note-abstract] DIAG hostRect L=${Math.round(hostRect.left)} T=${Math.round(hostRect.top)} W=${Math.round(hostRect.width)} H=${Math.round(hostRect.height)}`);
+          }
+          if (hcs) {
+            console.log(`[note-abstract] DIAG hostStyle position=${hcs.position} display=${hcs.display} zIndex=${hcs.zIndex} visibility=${hcs.visibility} opacity=${hcs.opacity}`);
+          }
+          console.log(`[note-abstract] DIAG panelRect L=${Math.round(panelRect.left)} T=${Math.round(panelRect.top)} W=${Math.round(panelRect.width)} H=${Math.round(panelRect.height)}`);
+          console.log(`[note-abstract] DIAG panelStyle display=${cs.display} visibility=${cs.visibility} opacity=${cs.opacity} transform=${cs.transform}`);
+          console.log(`[note-abstract] DIAG viewport W=${window.innerWidth} H=${window.innerHeight}`);
+          console.log(`[note-abstract] DIAG isOnScreen=${isOnScreen}`);
+          console.log('━━━━━ note-abstract DIAG END ━━━━━');
+
+          // Visible banner attached to document.body (independent of shadow DOM).
+          // Uses !important everywhere so note.com's CSS cannot hide it.
+          if (document.body) {
+            const old = document.getElementById('note-abstract-diag-banner');
+            if (old && old.parentElement) old.parentElement.removeChild(old);
+            const banner = document.createElement('div');
+            banner.id = 'note-abstract-diag-banner';
+            banner.textContent = `note-abstract DIAG: panel ${isOnScreen ? '画面内 ✅' : '画面外 ❌'}  L=${Math.round(panelRect.left)} W=${Math.round(panelRect.width)} H=${Math.round(panelRect.height)} (vw=${window.innerWidth})`;
+            banner.style.cssText = [
+              'position: fixed !important',
+              'top: 50% !important',
+              'left: 50% !important',
+              'transform: translate(-50%, -50%) !important',
+              'background: magenta !important',
+              'color: #ffffff !important',
+              'padding: 18px 28px !important',
+              'border: 4px solid #fff !important',
+              'border-radius: 14px !important',
+              'z-index: 2147483647 !important',
+              'font-size: 16px !important',
+              "font-family: 'Segoe UI', sans-serif !important",
+              'font-weight: 700 !important',
+              'display: block !important',
+              'visibility: visible !important',
+              'opacity: 1 !important',
+              'width: auto !important',
+              'height: auto !important',
+              'min-width: 360px !important',
+              'box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important',
+              'pointer-events: none !important',
+              'text-align: center !important',
+              'line-height: 1.4 !important',
+            ].join('; ') + ';';
+            document.body.appendChild(banner);
+            setTimeout(() => {
+              if (banner.parentElement) banner.parentElement.removeChild(banner);
+            }, 6000);
+          }
+
+          // Also outline the actual host so we can see where it ended up.
           if (host) {
-            const prevOutline = host.style.outline;
-            const prevOffset = host.style.outlineOffset;
             host.style.outline = '6px solid magenta';
             host.style.outlineOffset = '-6px';
             setTimeout(() => {
-              host.style.outline = prevOutline || '';
-              host.style.outlineOffset = prevOffset || '';
+              host.style.outline = '';
+              host.style.outlineOffset = '';
             }, 6000);
           }
         } catch (err) {
