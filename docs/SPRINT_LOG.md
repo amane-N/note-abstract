@@ -170,3 +170,60 @@ Evaluator サブエージェントが `npx playwright test tests/e2e/sprint-03.s
 ### 学び
 - 結果コンテナを再利用する非同期 UI では、実行開始時に古い DOM をクリアしないと「待機条件が前回結果で即満たされる」競合バグになる。E2E テストの waitForFunction 系で再現しやすいため、ローディング開始と同時のクリアを既定パターン化する。
 - 評価ルールで「permissions が ["storage","activeTab"] のみ」を厳格チェックする場合、`scripting` を実際に使用しているか (service-worker.js の `chrome.scripting.executeScript`) を必ず照合する。仕様書 §3 ALWAYS 1 は「実際に使うものだけ」と規定しており、未使用権限の検出が目的。
+
+## Sprint 4 再評価(2026-05-08 試行3回目 — Evaluator 実機再実行)
+
+Evaluator サブエージェントが `npx playwright test tests/e2e/sprint-04.spec.js --reporter=list` を直接実行し、全 6 テストのパスを実機確認。
+
+- sprint-04.spec.js: 6 passed (17.0s)
+- リグレッション (sprint-01〜03): 10 passed (19.9s) — 合計 16 テスト全パス
+
+合格基準との対応:
+1. 予測結果が 30 秒以内に返る: ✅ (test #4 — 3 テンプレート合計で 3.4 秒)
+2. 各テンプレートで明らかに異なる文体・観点: ✅ (test #4 — STANDARD/BUSINESS/ACADEMIC マーカーで識別、各 3 セクション確認)
+3. キーワードがちょうど 5 つ: ✅ (test #5 — items.length === 5)
+4. キーワードクリックで https://note.com/search?q=... に遷移: ✅ (test #5 — target="_blank", rel="noopener", href 一致)
+5. APIキー未設定時の誘導表示: ✅ (test #2 prediction-byok-notice / test #3 related-byok-notice)
+
+総合判定: 合格 (確認済み)
+
+## Sprint 4 後修正(2026-05-08 — アイコンクリックでパネルが開かない事象の調査)
+
+### 報告
+ユーザーから「拡張機能のアイコンをクリックしてもサイドパネルが出ない」と報告。Sprint 4 を反映した直後で発生。
+
+### 段階的調査
+1. `git diff a4873dd HEAD` で Sprint 4 の変更ファイルを把握 (manifest / service-worker / content.js / side-panel.js / 新規ライブラリ 3 種)
+2. `manifest.json` / `service-worker.js` のロード経路を点検 — content_scripts のロード順、CONTENT_SCRIPT_FILES、web_accessible_resources は仕様通り
+3. `tests/e2e/diagnose-icon-click.spec.js` を新規作成し、`chrome.action.onClicked` が呼ぶ `dispatchToggle` 経路 (PING → executeScript 注入 → TOGGLE_SIDE_PANEL → panel.open) を SW 上で逐次再現
+4. 通常経路 (test #1): 正常に panel.dataset.state = open に遷移
+5. 拡張機能再読み込み相当 (test #2 stale-tab) で**バグ再現**:
+   ```
+   handleToggle invoked
+   handleToggle: panel.isOpen()=false
+   handleToggle: panel.open() called
+   handleToggle invoked              ← 1 通の TOGGLE で 2 回発火
+   handleToggle: panel.isOpen()=true
+   handleToggle: panel.close() called  ← 直後に閉じてしまう
+   ```
+
+### 根本原因
+**`chrome.runtime.onMessage` リスナーが二重登録される条件下で、1 回の TOGGLE_SIDE_PANEL で `handleToggle` が 2 回連続発火し、開いた直後に閉じる。**
+
+メカニズム: `content.js` の `init()` は `__noteAbstractContentInitialized` フラグで再エントリを防いでいるが、リスナー登録もこのフラグ配下にあった。何らかの理由でフラグが消えた状態で `chrome.scripting.executeScript` が再注入を行うと、第 2 IIFE が `addListener` を再実行 → 同じ拡張機能コンテキストに 2 つのリスナーが共存 → 1 通の TOGGLE で両方発火。
+
+### 修正
+`src/content/content.js`:
+- メッセージリスナー登録を `ensureMessageListener()` に切り出し、`globalThis.__noteAbstractMessageListenerInstalled` という独立した冪等フラグでガード
+- リスナー登録を `init()` の最初に移動し、URL チェックや panel 構築より先に実行 (panel 構築が throw しても messaging は生きる)
+- `ensureShadowHost / ensurePanel / watchHost` を try/catch で包み、構築失敗時もリスナーが残るようにする
+
+### 検証
+- `tests/e2e/diagnose-icon-click.spec.js` — 修正後は stale-tab シナリオでも `handleToggle` が 1 回しか呼ばれず、panel は開いたまま
+- `npx playwright test --reporter=list` — 全 19 テスト合格 (sprint-01 / 02 / 03 / 04 + 診断 3 件)
+- リグレッション 0
+
+### 学び
+- `addListener` 系の API は **冪等性を呼び出し側で担保** する必要がある。Chrome 拡張機能のリスナーは「同じ関数を 2 回登録すれば 2 回呼ばれる」ため、再エントリーが起こりうる経路すべてに対して独立フラグでのガードが必須。
+- フラグは「機能の初期化済み」と「リスナー登録済み」を別々に持つのが安全。前者だけだと、構築失敗 → フラグ消失 → 再注入で複製、というシナリオを防げない。
+- E2E テストでは「サブシステム単体は正常動作」を確認するだけでは不十分。**バックグラウンド経路 (action.onClicked → dispatchToggle → 再注入)** を含む実機相当のフローを最低 1 本仕込んでおくこと。

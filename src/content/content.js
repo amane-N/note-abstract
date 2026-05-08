@@ -239,32 +239,17 @@
     }
   };
 
-  const init = () => {
-    if (globalThis.__noteAbstractContentInitialized) {
-      console.log(`${LOG_PREFIX} init skipped: already initialized`);
-      return;
-    }
-    if (!isNoteArticleUrl(location.href)) {
-      console.log(`${LOG_PREFIX} skipped: not a note article URL (${location.href})`);
-      return;
-    }
-    globalThis.__noteAbstractContentInitialized = true;
-
-    console.log(`${LOG_PREFIX} content script loaded on ${location.href}`);
-
-    const article = getArticle();
-    if (article.ok) {
-      console.log(`${LOG_PREFIX} title: ${article.title}`);
-      console.log(
-        `${LOG_PREFIX} body extracted: ${article.body.length} chars (selector: ${article.bodySelector})`
-      );
-    } else {
-      console.log(`${LOG_PREFIX} extraction failed: ${article.reason}`);
-    }
-
-    ensureShadowHost();
-    ensurePanel();
-    watchHost();
+  // Idempotent message-listener guard. Kept on globalThis with its own key so
+  // it survives even if `__noteAbstractContentInitialized` gets cleared (e.g.
+  // by a re-injection that resets state). Without this guard, executeScript
+  // re-running content.js after a partial state wipe creates a *second*
+  // listener; one TOGGLE message then fires handleToggle twice and the panel
+  // opens-then-closes within milliseconds — the symptom users see as "icon
+  // does nothing." See tests/e2e/diagnose-icon-click.spec.js for the
+  // reproduction.
+  const ensureMessageListener = () => {
+    if (globalThis.__noteAbstractMessageListenerInstalled) return;
+    globalThis.__noteAbstractMessageListenerInstalled = true;
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message && message.type === 'PING') {
@@ -289,6 +274,46 @@
       }
       return false;
     });
+  };
+
+  const init = () => {
+    // Register the message listener FIRST and idempotently. This guarantees
+    // that PING / TOGGLE_SIDE_PANEL keep working even if subsequent panel
+    // setup throws, AND that re-injection never installs a duplicate listener.
+    ensureMessageListener();
+
+    if (globalThis.__noteAbstractContentInitialized) {
+      console.log(`${LOG_PREFIX} init skipped: already initialized`);
+      return;
+    }
+    if (!isNoteArticleUrl(location.href)) {
+      console.log(`${LOG_PREFIX} skipped: not a note article URL (${location.href})`);
+      return;
+    }
+    globalThis.__noteAbstractContentInitialized = true;
+
+    console.log(`${LOG_PREFIX} content script loaded on ${location.href}`);
+
+    const article = getArticle();
+    if (article.ok) {
+      console.log(`${LOG_PREFIX} title: ${article.title}`);
+      console.log(
+        `${LOG_PREFIX} body extracted: ${article.body.length} chars (selector: ${article.bodySelector})`
+      );
+    } else {
+      console.log(`${LOG_PREFIX} extraction failed: ${article.reason}`);
+    }
+
+    try {
+      ensureShadowHost();
+      ensurePanel();
+      watchHost();
+    } catch (err) {
+      console.warn(
+        `${LOG_PREFIX} panel bootstrap failed`,
+        err && err.message ? err.message : err
+      );
+    }
   };
 
   if (document.readyState === 'loading') {
