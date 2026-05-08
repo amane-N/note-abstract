@@ -18,7 +18,16 @@
       host.id = HOST_ELEMENT_ID;
       host.style.all = 'initial';
       host.attachShadow({ mode: 'open' });
-      document.body.appendChild(host);
+      // Append to <html>, not <body>: note.com's React framework re-renders the
+      // body subtree during navigation/lazy-load, which would silently remove
+      // any element we placed inside it. <html> is outside the React root.
+      const parent = document.documentElement || document.body;
+      if (parent) {
+        parent.appendChild(host);
+      } else {
+        document.body.appendChild(host);
+      }
+      console.log(`${LOG_PREFIX} shadow host created and attached to ${parent === document.documentElement ? '<html>' : '<body>'}`);
     } else if (!host.shadowRoot) {
       host.attachShadow({ mode: 'open' });
     }
@@ -33,10 +42,39 @@
   };
 
   const ensurePanel = () => {
-    if (panelInstance) return panelInstance;
     const host = ensureShadowHost();
+    // If the cached instance was attached to a host that is no longer in the
+    // document (note.com SPA removed it), drop it and remount on the fresh host.
+    if (panelInstance && panelInstance.host && !panelInstance.host.isConnected) {
+      console.warn(`${LOG_PREFIX} previous host disconnected; remounting panel`);
+      panelInstance = null;
+    }
+    if (panelInstance) return panelInstance;
     panelInstance = ns.SidePanel.mount(host);
+    console.log(`${LOG_PREFIX} panel mounted on shadow host`);
     return panelInstance;
+  };
+
+  let mutationObserver = null;
+  const watchHost = () => {
+    if (mutationObserver || typeof MutationObserver !== 'function') return;
+    const root = document.documentElement;
+    if (!root) return;
+    mutationObserver = new MutationObserver(() => {
+      const stillThere = document.getElementById(HOST_ELEMENT_ID);
+      if (stillThere) return;
+      console.warn(`${LOG_PREFIX} host element removed by page; re-mounting panel`);
+      panelInstance = null;
+      try {
+        ensurePanel();
+      } catch (err) {
+        console.warn(
+          `${LOG_PREFIX} re-mount failed`,
+          err && err.message ? err.message : err
+        );
+      }
+    });
+    mutationObserver.observe(root, { childList: true, subtree: true });
   };
 
   const parseKeyPointsOutput = (raw) => {
@@ -96,15 +134,36 @@
   };
 
   const handleToggle = async () => {
-    const panel = ensurePanel();
-    if (panel.isOpen()) {
+    console.log(`${LOG_PREFIX} handleToggle invoked`);
+    let panel;
+    try {
+      panel = ensurePanel();
+    } catch (err) {
+      console.error(
+        `${LOG_PREFIX} ensurePanel threw — aborting toggle`,
+        err && err.message ? err.message : err
+      );
+      return;
+    }
+    const wasOpen = panel.isOpen();
+    console.log(`${LOG_PREFIX} handleToggle: panel.isOpen()=${wasOpen}`);
+    if (wasOpen) {
       panel.close();
+      console.log(`${LOG_PREFIX} handleToggle: panel.close() called`);
       return;
     }
     panel.open();
+    console.log(`${LOG_PREFIX} handleToggle: panel.open() called`);
     if (!panel.hasRunSummary()) {
       panel.markSummaryRan();
-      await runSummaryWorkflow(panel);
+      try {
+        await runSummaryWorkflow(panel);
+      } catch (err) {
+        console.warn(
+          `${LOG_PREFIX} runSummaryWorkflow threw`,
+          err && err.message ? err.message : err
+        );
+      }
     }
   };
 
@@ -133,6 +192,7 @@
 
     ensureShadowHost();
     ensurePanel();
+    watchHost();
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message && message.type === 'PING') {

@@ -470,11 +470,17 @@
     open() {
       this.opened = true;
       this.panel.dataset.state = 'open';
+      // Inline fallback in case the shadow stylesheet failed to load — guarantees
+      // the panel slides into view even when CSS rules cannot be evaluated.
+      this.panel.style.transform = 'translateX(0)';
+      console.log(`[note-abstract] panel.open() → state=${this.panel.dataset.state}`);
     }
 
     close() {
       this.opened = false;
       this.panel.dataset.state = 'closed';
+      this.panel.style.transform = 'translateX(100%)';
+      console.log(`[note-abstract] panel.close() → state=${this.panel.dataset.state}`);
     }
 
     toggle() {
