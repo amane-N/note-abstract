@@ -70,6 +70,45 @@
     return cachedArticle;
   };
 
+  const wirePanelHandlers = (panel) => {
+    if (panel.__noteAbstractHandlersWired) return;
+    panel.__noteAbstractHandlersWired = true;
+
+    if (typeof panel.setPredictionHandler === 'function') {
+      panel.setPredictionHandler(async (templateId) => {
+        const article = getArticle();
+        if (!article || !article.ok) {
+          throw new Error('記事の本文を取得できませんでした。ページを再読み込みしてください。');
+        }
+        if (!ns.Predictor) {
+          throw new Error('予測モジュールを読み込めませんでした。拡張機能を再読み込みしてください。');
+        }
+        const result = await ns.Predictor.generatePrediction(article, templateId);
+        // Provide the section order from the template (Predictor returns sections
+        // keyed by name; we need a stable order for rendering).
+        const templates = await ns.Predictor.getTemplates();
+        const tpl = templates.find((t) => t.id === result.templateId) || templates[0];
+        return {
+          ...result,
+          outputSections: tpl ? tpl.outputSections : Object.keys(result.sections || {}),
+        };
+      });
+    }
+
+    if (typeof panel.setRelatedHandler === 'function') {
+      panel.setRelatedHandler(async () => {
+        const article = getArticle();
+        if (!article || !article.ok) {
+          throw new Error('記事の本文を取得できませんでした。ページを再読み込みしてください。');
+        }
+        if (!ns.KeywordSuggester) {
+          throw new Error('関連キーワードモジュールを読み込めませんでした。拡張機能を再読み込みしてください。');
+        }
+        return ns.KeywordSuggester.suggestKeywords(article);
+      });
+    }
+  };
+
   const ensurePanel = () => {
     const host = ensureShadowHost();
     // If the cached instance was attached to a host that is no longer in the
@@ -78,8 +117,12 @@
       console.warn(`${LOG_PREFIX} previous host disconnected; remounting panel`);
       panelInstance = null;
     }
-    if (panelInstance) return panelInstance;
+    if (panelInstance) {
+      wirePanelHandlers(panelInstance);
+      return panelInstance;
+    }
     panelInstance = ns.SidePanel.mount(host);
+    wirePanelHandlers(panelInstance);
     console.log(`${LOG_PREFIX} panel mounted on shadow host`);
     return panelInstance;
   };

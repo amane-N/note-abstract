@@ -8,6 +8,9 @@ const CONTENT_SCRIPT_FILES = [
   'src/lib/storage.js',
   'src/lib/note-parser.js',
   'src/lib/nano-summarizer.js',
+  'src/lib/gemini-client.js',
+  'src/lib/predictor.js',
+  'src/lib/keyword-suggester.js',
   'src/content/side-panel.js',
   'src/content/content.js',
 ];

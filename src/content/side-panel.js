@@ -10,8 +10,8 @@
 
   const TABS = [
     { id: 'summary', label: '要約', enabled: true },
-    { id: 'prediction', label: '予測', enabled: false, locked: 'BYOK 設定後に開放 (Sprint 4)' },
-    { id: 'related', label: '関連', enabled: false, locked: 'BYOK 設定後に開放 (Sprint 4)' },
+    { id: 'prediction', label: '予測', enabled: true },
+    { id: 'related', label: '関連', enabled: true },
     { id: 'history', label: '履歴', enabled: false, locked: '有料層で開放 (Sprint 6)' },
     { id: 'settings', label: '設定', enabled: true },
   ];
@@ -244,6 +244,141 @@
       outline: 2px solid #93c5fd;
       outline-offset: 2px;
     }
+    .byok-notice {
+      padding: 12px 14px;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .byok-notice h4 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: #92400e;
+    }
+    .byok-notice p { margin: 0 0 8px; }
+    .byok-notice a {
+      color: #1d4ed8;
+      text-decoration: underline;
+    }
+    .byok-notice .open-options-btn {
+      margin-top: 4px;
+    }
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .template-select {
+      flex: 1 1 auto;
+      padding: 6px 8px;
+      font-size: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #1f2937;
+      min-width: 130px;
+    }
+    .run-btn {
+      appearance: none;
+      border: 1px solid #1a73e8;
+      background: #1a73e8;
+      color: #ffffff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .run-btn:hover { background: #155bbb; border-color: #155bbb; }
+    .run-btn[disabled] {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .inline-loader {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .inline-loader[data-active='true'] { display: inline-flex; }
+    .inline-error {
+      display: none;
+      padding: 10px 12px;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+    }
+    .inline-error[data-active='true'] { display: block; }
+    .prediction-section {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      background: #f9fafb;
+    }
+    .prediction-section h4 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: #1d4ed8;
+      letter-spacing: 0.04em;
+    }
+    .prediction-section p {
+      margin: 0;
+      white-space: pre-wrap;
+      color: #1f2937;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .keyword-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .keyword-list li { margin: 0; }
+    .keyword-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #1f2937;
+      text-decoration: none;
+      font-size: 13px;
+      transition: border-color 120ms ease, background 120ms ease;
+    }
+    .keyword-link:hover {
+      border-color: #1a73e8;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .keyword-link .arrow {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    .keyword-link:hover .arrow { color: #1a73e8; }
+    .related-meta {
+      font-size: 11px;
+      color: #64748b;
+      margin: 0 0 10px;
+    }
   `;
 
   class SidePanel {
@@ -300,10 +435,47 @@
             <div class="fallback" data-role="fallback" hidden></div>
           </section>
           <section class="tab-panel" data-tab="prediction">
-            <div class="placeholder">将来予測機能は Sprint 4 で実装予定です。<div class="lock-hint">BYOK (Google AI Studio API キー) 設定後に開放されます。</div></div>
+            <div class="byok-notice" data-role="prediction-byok-notice" hidden>
+              <h4>Google AI Studio API キーが必要です</h4>
+              <p>将来予測・含意分析を生成するには、無料で取得できる Google AI Studio の API キーが必要です。<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">取得手順を開く</a></p>
+              <button type="button" class="open-options-btn" data-role="prediction-open-options">設定ページを開く</button>
+            </div>
+            <div data-role="prediction-main" hidden>
+              <div class="controls-row">
+                <label class="visually-hidden" for="prediction-template-select" style="display:none">テンプレート</label>
+                <select class="template-select" data-role="prediction-template" id="prediction-template-select" aria-label="予測テンプレート"></select>
+                <button type="button" class="run-btn" data-role="prediction-run">予測する</button>
+              </div>
+              <div class="inline-loader" data-role="prediction-loader" role="status" aria-live="polite">
+                <span class="spinner"></span>
+                <span data-role="prediction-loader-text">予測を生成中…</span>
+              </div>
+              <div class="inline-error" data-role="prediction-error" role="alert"></div>
+              <div data-role="prediction-result">
+                <div class="placeholder">テンプレートを選んで「予測する」ボタンを押すと、3 セクション構造の批判的分析が表示されます。</div>
+              </div>
+            </div>
           </section>
           <section class="tab-panel" data-tab="related">
-            <div class="placeholder">関連キーワード機能は Sprint 4 で実装予定です。<div class="lock-hint">BYOK 設定後に開放されます。</div></div>
+            <div class="byok-notice" data-role="related-byok-notice" hidden>
+              <h4>Google AI Studio API キーが必要です</h4>
+              <p>関連キーワードを提案するには、無料で取得できる Google AI Studio の API キーが必要です。<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">取得手順を開く</a></p>
+              <button type="button" class="open-options-btn" data-role="related-open-options">設定ページを開く</button>
+            </div>
+            <div data-role="related-main" hidden>
+              <div class="controls-row">
+                <button type="button" class="run-btn" data-role="related-run">キーワードを提案</button>
+              </div>
+              <div class="inline-loader" data-role="related-loader" role="status" aria-live="polite">
+                <span class="spinner"></span>
+                <span>関連キーワードを生成中…</span>
+              </div>
+              <div class="inline-error" data-role="related-error" role="alert"></div>
+              <p class="related-meta" data-role="related-meta" hidden></p>
+              <div data-role="related-result">
+                <div class="placeholder">「キーワードを提案」ボタンを押すと、関連キーワード 5 つと note 検索リンクが表示されます。</div>
+              </div>
+            </div>
           </section>
           <section class="tab-panel" data-tab="history">
             <div class="placeholder">履歴機能は Sprint 6 で実装予定です。<div class="lock-hint">有料層で開放されます。</div></div>
@@ -340,7 +512,30 @@
         apiKeyStatus: panel.querySelector('[data-role="api-key-status"]'),
         apiKeyStatusText: panel.querySelector('[data-role="api-key-status-text"]'),
         openOptionsBtn: panel.querySelector('[data-role="open-options"]'),
+        predictionByokNotice: panel.querySelector('[data-role="prediction-byok-notice"]'),
+        predictionMain: panel.querySelector('[data-role="prediction-main"]'),
+        predictionTemplate: panel.querySelector('[data-role="prediction-template"]'),
+        predictionRun: panel.querySelector('[data-role="prediction-run"]'),
+        predictionLoader: panel.querySelector('[data-role="prediction-loader"]'),
+        predictionLoaderText: panel.querySelector('[data-role="prediction-loader-text"]'),
+        predictionError: panel.querySelector('[data-role="prediction-error"]'),
+        predictionResult: panel.querySelector('[data-role="prediction-result"]'),
+        predictionOpenOptions: panel.querySelector('[data-role="prediction-open-options"]'),
+        relatedByokNotice: panel.querySelector('[data-role="related-byok-notice"]'),
+        relatedMain: panel.querySelector('[data-role="related-main"]'),
+        relatedRun: panel.querySelector('[data-role="related-run"]'),
+        relatedLoader: panel.querySelector('[data-role="related-loader"]'),
+        relatedError: panel.querySelector('[data-role="related-error"]'),
+        relatedMeta: panel.querySelector('[data-role="related-meta"]'),
+        relatedResult: panel.querySelector('[data-role="related-result"]'),
+        relatedOpenOptions: panel.querySelector('[data-role="related-open-options"]'),
       };
+      this._predictionTemplatesLoaded = false;
+      this._predictionRunning = false;
+      this._relatedRunning = false;
+      this._predictionHandler = null;
+      this._relatedHandler = null;
+      this._currentTemplateId = 'standard';
     }
 
     _bindEvents() {
@@ -356,6 +551,36 @@
       if (this.elements.openOptionsBtn) {
         this.elements.openOptionsBtn.addEventListener('click', () => {
           this._openOptionsPage();
+        });
+      }
+
+      if (this.elements.predictionOpenOptions) {
+        this.elements.predictionOpenOptions.addEventListener('click', () => {
+          this._openOptionsPage();
+        });
+      }
+
+      if (this.elements.relatedOpenOptions) {
+        this.elements.relatedOpenOptions.addEventListener('click', () => {
+          this._openOptionsPage();
+        });
+      }
+
+      if (this.elements.predictionRun) {
+        this.elements.predictionRun.addEventListener('click', () => {
+          this._invokePrediction();
+        });
+      }
+
+      if (this.elements.predictionTemplate) {
+        this.elements.predictionTemplate.addEventListener('change', (e) => {
+          this._currentTemplateId = e.target.value;
+        });
+      }
+
+      if (this.elements.relatedRun) {
+        this.elements.relatedRun.addEventListener('click', () => {
+          this._invokeRelated();
         });
       }
 
@@ -426,6 +651,264 @@
         this.refreshSettings().catch((err) => {
           console.warn('[note-abstract] refreshSettings failed', err && err.message ? err.message : err);
         });
+      }
+      if (id === 'prediction') {
+        this._refreshPredictionTab().catch((err) => {
+          console.warn('[note-abstract] refreshPredictionTab failed', err && err.message ? err.message : err);
+        });
+      }
+      if (id === 'related') {
+        this._refreshRelatedTab().catch((err) => {
+          console.warn('[note-abstract] refreshRelatedTab failed', err && err.message ? err.message : err);
+        });
+      }
+    }
+
+    setPredictionHandler(fn) {
+      this._predictionHandler = fn;
+    }
+
+    setRelatedHandler(fn) {
+      this._relatedHandler = fn;
+    }
+
+    async _refreshPredictionTab() {
+      const ns = globalThis.__noteAbstract || {};
+      const hasKey = ns.Storage ? await ns.Storage.hasApiKey().catch(() => false) : false;
+      this._togglePredictionGate(hasKey);
+      if (hasKey && !this._predictionTemplatesLoaded && ns.Predictor) {
+        try {
+          const templates = await ns.Predictor.getTemplates();
+          this._populateTemplateSelect(templates);
+          this._predictionTemplatesLoaded = true;
+        } catch (err) {
+          this._showPredictionError(
+            'テンプレート定義を読み込めませんでした。拡張機能を再読み込みしてください。'
+          );
+        }
+      }
+    }
+
+    async _refreshRelatedTab() {
+      const ns = globalThis.__noteAbstract || {};
+      const hasKey = ns.Storage ? await ns.Storage.hasApiKey().catch(() => false) : false;
+      this._toggleRelatedGate(hasKey);
+    }
+
+    _togglePredictionGate(hasKey) {
+      if (this.elements.predictionByokNotice) {
+        this.elements.predictionByokNotice.hidden = !!hasKey;
+      }
+      if (this.elements.predictionMain) {
+        this.elements.predictionMain.hidden = !hasKey;
+      }
+    }
+
+    _toggleRelatedGate(hasKey) {
+      if (this.elements.relatedByokNotice) {
+        this.elements.relatedByokNotice.hidden = !!hasKey;
+      }
+      if (this.elements.relatedMain) {
+        this.elements.relatedMain.hidden = !hasKey;
+      }
+    }
+
+    _populateTemplateSelect(templates) {
+      const select = this.elements.predictionTemplate;
+      if (!select) return;
+      select.innerHTML = '';
+      const list = Array.isArray(templates) ? templates : [];
+      list.forEach((t) => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.name || t.id;
+        select.appendChild(opt);
+      });
+      const preferred = list.find((t) => t.id === this._currentTemplateId)
+        ? this._currentTemplateId
+        : (list[0] && list[0].id) || 'standard';
+      select.value = preferred;
+      this._currentTemplateId = preferred;
+    }
+
+    _showPredictionError(message) {
+      if (!this.elements.predictionError) return;
+      this.elements.predictionError.textContent = message;
+      this.elements.predictionError.dataset.active = 'true';
+    }
+
+    _clearPredictionError() {
+      if (!this.elements.predictionError) return;
+      this.elements.predictionError.textContent = '';
+      this.elements.predictionError.dataset.active = 'false';
+    }
+
+    _setPredictionLoading(loading, message) {
+      this._predictionRunning = !!loading;
+      if (this.elements.predictionLoader) {
+        this.elements.predictionLoader.dataset.active = loading ? 'true' : 'false';
+      }
+      if (loading && message && this.elements.predictionLoaderText) {
+        this.elements.predictionLoaderText.textContent = message;
+      }
+      if (this.elements.predictionRun) {
+        this.elements.predictionRun.disabled = !!loading;
+      }
+      if (this.elements.predictionTemplate) {
+        this.elements.predictionTemplate.disabled = !!loading;
+      }
+    }
+
+    _setRelatedLoading(loading) {
+      this._relatedRunning = !!loading;
+      if (this.elements.relatedLoader) {
+        this.elements.relatedLoader.dataset.active = loading ? 'true' : 'false';
+      }
+      if (this.elements.relatedRun) {
+        this.elements.relatedRun.disabled = !!loading;
+      }
+    }
+
+    _showRelatedError(message) {
+      if (!this.elements.relatedError) return;
+      this.elements.relatedError.textContent = message;
+      this.elements.relatedError.dataset.active = 'true';
+    }
+
+    _clearRelatedError() {
+      if (!this.elements.relatedError) return;
+      this.elements.relatedError.textContent = '';
+      this.elements.relatedError.dataset.active = 'false';
+    }
+
+    setPrediction(result) {
+      const container = this.elements.predictionResult;
+      if (!container) return;
+      container.innerHTML = '';
+      const sections = (result && result.sections) || {};
+      const order = (result && result.outputSections) || Object.keys(sections);
+      order.forEach((name) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'prediction-section';
+        wrap.dataset.section = name;
+        const h = document.createElement('h4');
+        h.textContent = name;
+        const p = document.createElement('p');
+        p.textContent = sections[name] || '(このセクションのテキストが返りませんでした)';
+        wrap.appendChild(h);
+        wrap.appendChild(p);
+        container.appendChild(wrap);
+      });
+      if (!order.length) {
+        const fallback = document.createElement('div');
+        fallback.className = 'placeholder';
+        fallback.textContent = (result && result.rawText) || '結果を解釈できませんでした。';
+        container.appendChild(fallback);
+      }
+    }
+
+    setRelated(result) {
+      const container = this.elements.relatedResult;
+      if (!container) return;
+      container.innerHTML = '';
+      const items = (result && result.items) || [];
+      if (!items.length) {
+        const fallback = document.createElement('div');
+        fallback.className = 'placeholder';
+        fallback.textContent = '関連キーワードを生成できませんでした。';
+        container.appendChild(fallback);
+        return;
+      }
+      const ul = document.createElement('ul');
+      ul.className = 'keyword-list';
+      items.forEach((item) => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.className = 'keyword-link';
+        a.href = item.searchUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.dataset.keyword = item.keyword;
+        const label = document.createElement('span');
+        label.textContent = item.keyword;
+        const arrow = document.createElement('span');
+        arrow.className = 'arrow';
+        arrow.textContent = 'note 検索 →';
+        a.appendChild(label);
+        a.appendChild(arrow);
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+      container.appendChild(ul);
+      if (this.elements.relatedMeta) {
+        this.elements.relatedMeta.hidden = false;
+        this.elements.relatedMeta.textContent = `${items.length} 件のキーワードを生成しました。`;
+      }
+    }
+
+    async _invokePrediction() {
+      if (this._predictionRunning) return;
+      if (typeof this._predictionHandler !== 'function') {
+        this._showPredictionError('予測機能を初期化できませんでした。ページを再読み込みしてください。');
+        return;
+      }
+      this._clearPredictionError();
+      // Clear the previous result so a re-run with a different template never
+      // shows stale sections while the new request is in flight.
+      if (this.elements.predictionResult) {
+        this.elements.predictionResult.innerHTML = '';
+      }
+      this._setPredictionLoading(true, '予測を生成中…');
+      try {
+        const templateId = this._currentTemplateId
+          || (this.elements.predictionTemplate && this.elements.predictionTemplate.value)
+          || 'standard';
+        const result = await this._predictionHandler(templateId);
+        if (result && result.sections) {
+          // Ensure section order from caller is preserved.
+          this.setPrediction({
+            ...result,
+            outputSections: result.outputSections || Object.keys(result.sections),
+          });
+        } else {
+          this._showPredictionError('結果を取得できませんでした。少し待ってから再度お試しください。');
+        }
+      } catch (err) {
+        const message = (err && err.message)
+          ? err.message
+          : '予測を生成できませんでした。少し待ってから再度お試しください。';
+        this._showPredictionError(message);
+      } finally {
+        this._setPredictionLoading(false);
+      }
+    }
+
+    async _invokeRelated() {
+      if (this._relatedRunning) return;
+      if (typeof this._relatedHandler !== 'function') {
+        this._showRelatedError('関連機能を初期化できませんでした。ページを再読み込みしてください。');
+        return;
+      }
+      this._clearRelatedError();
+      if (this.elements.relatedMeta) this.elements.relatedMeta.hidden = true;
+      if (this.elements.relatedResult) {
+        this.elements.relatedResult.innerHTML = '';
+      }
+      this._setRelatedLoading(true);
+      try {
+        const result = await this._relatedHandler();
+        if (result && Array.isArray(result.items) && result.items.length > 0) {
+          this.setRelated(result);
+        } else {
+          this._showRelatedError('関連キーワードを取得できませんでした。少し待ってから再度お試しください。');
+        }
+      } catch (err) {
+        const message = (err && err.message)
+          ? err.message
+          : '関連キーワードを生成できませんでした。少し待ってから再度お試しください。';
+        this._showRelatedError(message);
+      } finally {
+        this._setRelatedLoading(false);
       }
     }
 

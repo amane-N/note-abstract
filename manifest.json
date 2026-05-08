@@ -16,10 +16,19 @@
         "src/lib/storage.js",
         "src/lib/note-parser.js",
         "src/lib/nano-summarizer.js",
+        "src/lib/gemini-client.js",
+        "src/lib/predictor.js",
+        "src/lib/keyword-suggester.js",
         "src/content/side-panel.js",
         "src/content/content.js"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/templates/prompts.json"],
+      "matches": ["https://note.com/*"]
     }
   ],
   "action": {
