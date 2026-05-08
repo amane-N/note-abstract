@@ -140,10 +140,20 @@
         return false;
       }
       if (message && message.type === 'TOGGLE_SIDE_PANEL') {
-        handleToggle()
-          .then(() => sendResponse({ ok: true }))
-          .catch((err) => sendResponse({ ok: false, error: String(err) }));
-        return true;
+        // Respond synchronously so the message channel does not time out while
+        // handleToggle awaits Summarizer availability / generation.
+        try {
+          sendResponse({ ok: true, dispatched: true });
+        } catch (_) {
+          // ignore
+        }
+        handleToggle().catch((err) => {
+          console.warn(
+            `${LOG_PREFIX} handleToggle failed`,
+            err && err.message ? err.message : err
+          );
+        });
+        return false;
       }
       return false;
     });

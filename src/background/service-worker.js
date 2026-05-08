@@ -88,12 +88,19 @@ chrome.action.onClicked.addListener(async (tab) => {
     return;
   }
 
-  try {
-    await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDE_PANEL' });
-  } catch (err) {
-    console.warn(`${LOG_PREFIX} sendMessage failed`, err && err.message ? err.message : err);
-    await flashBadge(tab.id, 'X', '#dc2626');
-  }
+  // Fire-and-forget: the content-script listener responds synchronously and
+  // runs the summary workflow in the background. Awaiting here would re-open
+  // the same channel-timeout window we are trying to avoid.
+  chrome.tabs
+    .sendMessage(tab.id, { type: 'TOGGLE_SIDE_PANEL' })
+    .catch((err) => {
+      const msg = err && err.message ? err.message : String(err);
+      // "channel closed before a response was received" は handleToggle が
+      // sendResponse を呼ばない非同期パスでも発生するため、エラー扱いにしない。
+      if (/message channel closed/i.test(msg)) return;
+      console.warn(`${LOG_PREFIX} sendMessage failed`, msg);
+      flashBadge(tab.id, 'X', '#dc2626');
+    });
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
