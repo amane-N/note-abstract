@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "note アブストラクト",
+  "version": "0.1.0",
+  "description": "note.com の記事を要約・分析する Chrome 拡張機能",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://note.com/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://note.com/*/n/*"],
+      "js": ["src/content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "note アブストラクト"
+  },
+  "options_page": "src/options/options.html",
+  "icons": {
+    "16": "assets/icon-16.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  }
+}
