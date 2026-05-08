@@ -11,12 +11,16 @@
   "content_scripts": [
     {
       "matches": ["https://note.com/*/n/*"],
-      "js": ["src/content/content.js"],
+      "js": [
+        "src/lib/note-parser.js",
+        "src/lib/nano-summarizer.js",
+        "src/content/side-panel.js",
+        "src/content/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_popup": "src/popup/popup.html",
     "default_title": "note アブストラクト"
   },
   "options_page": "src/options/options.html",
