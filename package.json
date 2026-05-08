@@ -1,0 +1,10 @@
+{
+  "name": "note-abstract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension that summarizes note.com articles in abstract format",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {}
+}
