@@ -109,10 +109,15 @@
   };
 
   const init = () => {
+    if (globalThis.__noteAbstractContentInitialized) {
+      console.log(`${LOG_PREFIX} init skipped: already initialized`);
+      return;
+    }
     if (!isNoteArticleUrl(location.href)) {
       console.log(`${LOG_PREFIX} skipped: not a note article URL (${location.href})`);
       return;
     }
+    globalThis.__noteAbstractContentInitialized = true;
 
     console.log(`${LOG_PREFIX} content script loaded on ${location.href}`);
 
@@ -130,6 +135,10 @@
     ensurePanel();
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message && message.type === 'PING') {
+        sendResponse({ ok: true, ready: true });
+        return false;
+      }
       if (message && message.type === 'TOGGLE_SIDE_PANEL') {
         handleToggle()
           .then(() => sendResponse({ ok: true }))

@@ -144,6 +144,10 @@ test.describe('Sprint 3: API key + storage + Gemini client', () => {
       const clearDisabled = await page.locator('#clear-btn').isDisabled();
       expect(clearDisabled).toBe(true);
 
+      await page.waitForFunction(() => {
+        const cs = document.getElementById('current-status');
+        return cs && /未設定|設定されています/.test(cs.textContent || '');
+      }, { timeout: 5000 });
       const currentStateText = await page.locator('#current-status').textContent();
       expect(currentStateText || '').toMatch(/未設定/);
 
