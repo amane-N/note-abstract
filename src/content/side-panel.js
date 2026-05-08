@@ -474,6 +474,61 @@
       // the panel slides into view even when CSS rules cannot be evaluated.
       this.panel.style.transform = 'translateX(0)';
       console.log(`[note-abstract] panel.open() → state=${this.panel.dataset.state}`);
+
+      // Auto-diagnostic: dump the actual rendered geometry on the next frame so
+      // the user can see exactly where the panel landed without having to paste
+      // anything in DevTools. Also flash a magenta outline on the host for 6s.
+      setTimeout(() => {
+        try {
+          const host = this.host;
+          const panelRect = this.panel.getBoundingClientRect();
+          const hostRect = host && host.getBoundingClientRect();
+          const cs = getComputedStyle(this.panel);
+          const hcs = host && getComputedStyle(host);
+          console.log('[note-abstract] DIAG panel rect', {
+            panelLeft: Math.round(panelRect.left),
+            panelRight: Math.round(panelRect.right),
+            panelTop: Math.round(panelRect.top),
+            panelBottom: Math.round(panelRect.bottom),
+            panelW: Math.round(panelRect.width),
+            panelH: Math.round(panelRect.height),
+            panelDisplay: cs.display,
+            panelVisibility: cs.visibility,
+            panelOpacity: cs.opacity,
+            panelTransform: cs.transform,
+            hostLeft: hostRect && Math.round(hostRect.left),
+            hostRight: hostRect && Math.round(hostRect.right),
+            hostTop: hostRect && Math.round(hostRect.top),
+            hostBottom: hostRect && Math.round(hostRect.bottom),
+            hostW: hostRect && Math.round(hostRect.width),
+            hostH: hostRect && Math.round(hostRect.height),
+            hostPosition: hcs && hcs.position,
+            hostDisplay: hcs && hcs.display,
+            hostZIndex: hcs && hcs.zIndex,
+            viewportW: window.innerWidth,
+            viewportH: window.innerHeight,
+            isOnScreen:
+              panelRect.right > 0 &&
+              panelRect.left < window.innerWidth &&
+              panelRect.bottom > 0 &&
+              panelRect.top < window.innerHeight &&
+              panelRect.width > 0 &&
+              panelRect.height > 0,
+          });
+          if (host) {
+            const prevOutline = host.style.outline;
+            const prevOffset = host.style.outlineOffset;
+            host.style.outline = '6px solid magenta';
+            host.style.outlineOffset = '-6px';
+            setTimeout(() => {
+              host.style.outline = prevOutline || '';
+              host.style.outlineOffset = prevOffset || '';
+            }, 6000);
+          }
+        } catch (err) {
+          console.warn('[note-abstract] DIAG failed', err && err.message ? err.message : err);
+        }
+      }, 50);
     }
 
     close() {
