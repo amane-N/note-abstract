@@ -11,12 +11,37 @@
 
   const isNoteArticleUrl = (url) => NOTE_ARTICLE_RE.test(url);
 
+  const HOST_INLINE_STYLE = [
+    // CRITICAL: positioning must be set as inline styles because inline beats
+    // shadow `:host` rules in CSS specificity. Setting just `all: initial`
+    // would reset every :host declaration and the panel would fall back into
+    // document flow (this was the bug observed at L=255 instead of right:0).
+    'all: initial',
+    'position: fixed',
+    'top: 0',
+    'right: 0',
+    'left: auto',
+    'bottom: auto',
+    'width: auto',
+    'height: 100vh',
+    'display: block',
+    'visibility: visible',
+    'opacity: 1',
+    'margin: 0',
+    'padding: 0',
+    'border: 0',
+    'background: transparent',
+    'z-index: 2147483647',
+    'pointer-events: none',
+    'overflow: visible',
+  ].join('; ') + ';';
+
   const ensureShadowHost = () => {
     let host = document.getElementById(HOST_ELEMENT_ID);
     if (!host) {
       host = document.createElement('div');
       host.id = HOST_ELEMENT_ID;
-      host.style.all = 'initial';
+      host.style.cssText = HOST_INLINE_STYLE;
       host.attachShadow({ mode: 'open' });
       // Append to <html>, not <body>: note.com's React framework re-renders the
       // body subtree during navigation/lazy-load, which would silently remove
@@ -28,8 +53,12 @@
         document.body.appendChild(host);
       }
       console.log(`${LOG_PREFIX} shadow host created and attached to ${parent === document.documentElement ? '<html>' : '<body>'}`);
-    } else if (!host.shadowRoot) {
-      host.attachShadow({ mode: 'open' });
+    } else {
+      // Re-apply inline style in case note.com or another script mutated it.
+      host.style.cssText = HOST_INLINE_STYLE;
+      if (!host.shadowRoot) {
+        host.attachShadow({ mode: 'open' });
+      }
     }
     return host;
   };
