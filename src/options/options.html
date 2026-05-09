@@ -155,6 +155,113 @@
       color: #1a73e8;
       text-decoration: underline;
     }
+    /* Template management card */
+    .template-category-section {
+      margin-bottom: 20px;
+    }
+    .template-category-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      margin: 0 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .template-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .template-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px 14px;
+      background: #ffffff;
+    }
+    .template-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .template-card-name {
+      font-weight: 600;
+      font-size: 13px;
+      flex: 1 1 auto;
+    }
+    .tier-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 2px 7px;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+    .tier-badge[data-tier='free'] {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .tier-badge[data-tier='premium'] {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .cat-badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+    }
+    .fav-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      line-height: 1;
+      color: #94a3b8;
+      transition: color 0.15s;
+    }
+    .fav-btn[aria-pressed='true'] {
+      color: #f59e0b;
+    }
+    .fav-btn:hover { background: #f1f5f9; }
+    .template-prompt-preview {
+      font-size: 12px;
+      color: #475569;
+      margin: 4px 0 6px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+    }
+    .template-prompt-preview[data-expanded='true'] { display: block; }
+    .toggle-preview-btn {
+      font-size: 11px;
+      color: #1a73e8;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+    }
+    .template-sections {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+    .section-chip {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #334155;
+    }
     /* History card */
     .history-locked-notice {
       padding: 14px;
@@ -409,6 +516,17 @@
         </table>
         <div id="history-empty-msg" class="history-empty-msg" hidden>履歴はありません。</div>
       </div>
+    </div>
+  </section>
+
+  <section class="card" id="template-card">
+    <h2>テンプレート管理</h2>
+    <p class="lead">
+      予測タブで使用できるテンプレートを確認・管理します。
+      ☆ボタンでお気に入り登録でき、デバイス間で同期されます（要 Chrome ログイン）。
+    </p>
+    <div id="template-list-area">
+      <p style="font-size:13px;color:#94a3b8;">読み込み中…</p>
     </div>
   </section>
 

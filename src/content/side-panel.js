@@ -532,6 +532,47 @@
     }
   `;
 
+  // ---------------------------------------------------------------------------
+  // Template select helpers (module-level, not instance methods)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Load the favorite template IDs from chrome.storage.sync.
+   * Returns an empty array when storage is unavailable or on any error.
+   */
+  const _loadFavoriteTemplates = async () => {
+    try {
+      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.sync) return [];
+      const data = await chrome.storage.sync.get('favoriteTemplates');
+      const favs = data && data.favoriteTemplates;
+      return Array.isArray(favs) ? favs : [];
+    } catch (_) {
+      return [];
+    }
+  };
+
+  /**
+   * Build an <option> element for a given template entry.
+   * Applies lock style for premium templates when the user is on the free tier.
+   */
+  const _makeTemplateOption = (t, isPremium, favSet) => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    const isFav = favSet && favSet.has(t.id);
+    const isLocked = t.tier === 'premium' && !isPremium;
+    let label = t.name || t.id;
+    if (isFav) label = '⭐ ' + label;
+    if (isLocked) {
+      label = '🔒 ' + label;
+      opt.disabled = true;
+      opt.title = '有料層で開放されます';
+    }
+    opt.textContent = label;
+    return opt;
+  };
+
+  // ---------------------------------------------------------------------------
+
   class SidePanel {
     constructor(hostEl) {
       this.host = hostEl;
@@ -773,8 +814,22 @@
       }
 
       if (this.elements.predictionTemplate) {
-        this.elements.predictionTemplate.addEventListener('change', (e) => {
-          this._currentTemplateId = e.target.value;
+        this.elements.predictionTemplate.addEventListener('change', async (e) => {
+          const selectedId = e.target.value;
+          // Fallback: if a free-tier user somehow selects a premium template,
+          // revert to the first available free template.
+          const ns = globalThis.__noteAbstract || {};
+          const isPremium = ns.License ? await ns.License.isPremium().catch(() => false) : false;
+          if (!isPremium) {
+            const selectedOpt = e.target.options[e.target.selectedIndex];
+            if (selectedOpt && selectedOpt.disabled) {
+              // Revert to 'standard' as safe fallback
+              e.target.value = 'standard';
+              this._currentTemplateId = 'standard';
+              return;
+            }
+          }
+          this._currentTemplateId = selectedId;
         });
       }
 
@@ -956,9 +1011,18 @@
       try {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.onChanged) return;
         chrome.storage.onChanged.addListener((changes, area) => {
-          if (area !== 'local') return;
-          if (!changes || !('license' in changes)) return;
-          this._refreshLicense().catch(() => {});
+          // React to license changes (local storage)
+          if (area === 'local' && changes && 'license' in changes) {
+            this._refreshLicense().catch(() => {});
+            // Re-populate template select with updated premium state
+            this._predictionTemplatesLoaded = false;
+            this._refreshPredictionTab().catch(() => {});
+          }
+          // React to favorite template changes (sync storage)
+          if (area === 'sync' && changes && 'favoriteTemplates' in changes) {
+            this._predictionTemplatesLoaded = false;
+            this._refreshPredictionTab().catch(() => {});
+          }
         });
       } catch (_) {
         // ignore
@@ -977,10 +1041,14 @@
       const ns = globalThis.__noteAbstract || {};
       const hasKey = ns.Storage ? await ns.Storage.hasApiKey().catch(() => false) : false;
       this._togglePredictionGate(hasKey);
-      if (hasKey && !this._predictionTemplatesLoaded && ns.Predictor) {
+      if (hasKey && ns.Predictor) {
         try {
           const templates = await ns.Predictor.getTemplates();
-          this._populateTemplateSelect(templates);
+          // Always re-populate when opening the prediction tab, because the
+          // license state or favorites may have changed since last time.
+          const isPremium = ns.License ? await ns.License.isPremium().catch(() => false) : false;
+          const favorites = await _loadFavoriteTemplates();
+          await this._populateTemplateSelect(templates, isPremium, favorites);
           this._predictionTemplatesLoaded = true;
         } catch (err) {
           this._showPredictionError(
@@ -1014,20 +1082,64 @@
       }
     }
 
-    _populateTemplateSelect(templates) {
+    async _populateTemplateSelect(templates, isPremium, favorites) {
       const select = this.elements.predictionTemplate;
       if (!select) return;
       select.innerHTML = '';
       const list = Array.isArray(templates) ? templates : [];
+      const favSet = new Set(Array.isArray(favorites) ? favorites : []);
+
+      // Category display names (Japanese)
+      const CATEGORY_LABELS = {
+        standard: '標準',
+        business: 'ビジネス',
+        academic: '学術',
+        creative: 'クリエイティブ',
+        audience: '読者層別',
+        purpose: '目的別',
+        other: 'その他',
+      };
+
+      // Build a favorites group first (if any favorites exist in the list)
+      const favTemplates = list.filter((t) => favSet.has(t.id));
+      if (favTemplates.length > 0) {
+        const group = document.createElement('optgroup');
+        group.label = 'お気に入り';
+        favTemplates.forEach((t) => {
+          group.appendChild(_makeTemplateOption(t, isPremium, favSet));
+        });
+        select.appendChild(group);
+      }
+
+      // Group remaining templates by category
+      const categoryOrder = ['standard', 'business', 'academic', 'creative', 'audience', 'purpose', 'other'];
+      const byCategory = {};
       list.forEach((t) => {
-        const opt = document.createElement('option');
-        opt.value = t.id;
-        opt.textContent = t.name || t.id;
-        select.appendChild(opt);
+        const cat = t.category || 'other';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(t);
       });
-      const preferred = list.find((t) => t.id === this._currentTemplateId)
+
+      const sortedCats = [
+        ...categoryOrder.filter((c) => byCategory[c]),
+        ...Object.keys(byCategory).filter((c) => !categoryOrder.includes(c)),
+      ];
+
+      sortedCats.forEach((cat) => {
+        const group = document.createElement('optgroup');
+        group.label = CATEGORY_LABELS[cat] || cat;
+        byCategory[cat].forEach((t) => {
+          group.appendChild(_makeTemplateOption(t, isPremium, favSet));
+        });
+        select.appendChild(group);
+      });
+
+      // Determine which template to select
+      const selectableTemplates = list.filter((t) => isPremium || t.tier !== 'premium');
+      const currentInList = selectableTemplates.find((t) => t.id === this._currentTemplateId);
+      const preferred = currentInList
         ? this._currentTemplateId
-        : (list[0] && list[0].id) || 'standard';
+        : (selectableTemplates[0] && selectableTemplates[0].id) || 'standard';
       select.value = preferred;
       this._currentTemplateId = preferred;
     }

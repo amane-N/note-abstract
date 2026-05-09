@@ -542,6 +542,199 @@
     elements.showHideBtn.textContent = next === 'password' ? '表示' : '隠す';
   };
 
+  // ---------------------------------------------------------------------------
+  // Template management
+  // ---------------------------------------------------------------------------
+
+  const CATEGORY_LABELS = {
+    standard: '標準',
+    business: 'ビジネス',
+    academic: '学術',
+    creative: 'クリエイティブ',
+    audience: '読者層別',
+    purpose: '目的別',
+    other: 'その他',
+  };
+
+  const CATEGORY_ORDER = ['standard', 'business', 'academic', 'creative', 'audience', 'purpose', 'other'];
+
+  const loadFavoriteTemplates = async () => {
+    try {
+      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.sync) return [];
+      const data = await chrome.storage.sync.get('favoriteTemplates');
+      const favs = data && data.favoriteTemplates;
+      return Array.isArray(favs) ? favs : [];
+    } catch (_) {
+      return [];
+    }
+  };
+
+  const saveFavoriteTemplates = async (favs) => {
+    try {
+      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.sync) return;
+      await chrome.storage.sync.set({ favoriteTemplates: favs });
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} saveFavoriteTemplates failed`, err && err.message ? err.message : err);
+    }
+  };
+
+  const buildTemplateCard = (t, favSet) => {
+    const isFav = favSet.has(t.id);
+    const card = document.createElement('div');
+    card.className = 'template-card';
+    card.dataset.templateId = t.id;
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'template-card-header';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'template-card-name';
+    nameEl.textContent = t.name || t.id;
+
+    const catBadge = document.createElement('span');
+    catBadge.className = 'cat-badge';
+    catBadge.textContent = CATEGORY_LABELS[t.category] || t.category || '';
+
+    const tierBadge = document.createElement('span');
+    tierBadge.className = 'tier-badge';
+    tierBadge.dataset.tier = t.tier || 'free';
+    tierBadge.textContent = t.tier === 'premium' ? 'PREMIUM' : 'FREE';
+
+    const favBtn = document.createElement('button');
+    favBtn.type = 'button';
+    favBtn.className = 'fav-btn';
+    favBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
+    favBtn.setAttribute('aria-label', `${t.name} をお気に入りに${isFav ? '解除' : '登録'}`);
+    favBtn.textContent = isFav ? '★' : '☆';
+    favBtn.title = isFav ? 'お気に入りを解除' : 'お気に入りに登録';
+
+    favBtn.addEventListener('click', async () => {
+      const currentFavs = await loadFavoriteTemplates();
+      let updated;
+      if (currentFavs.includes(t.id)) {
+        updated = currentFavs.filter((id) => id !== t.id);
+      } else {
+        updated = [...currentFavs, t.id];
+      }
+      await saveFavoriteTemplates(updated);
+      // Update button state immediately
+      const isNowFav = updated.includes(t.id);
+      favBtn.setAttribute('aria-pressed', isNowFav ? 'true' : 'false');
+      favBtn.textContent = isNowFav ? '★' : '☆';
+      favBtn.title = isNowFav ? 'お気に入りを解除' : 'お気に入りに登録';
+      favBtn.setAttribute('aria-label', `${t.name} をお気に入りに${isNowFav ? '解除' : '登録'}`);
+    });
+
+    header.appendChild(nameEl);
+    header.appendChild(catBadge);
+    header.appendChild(tierBadge);
+    header.appendChild(favBtn);
+    card.appendChild(header);
+
+    // Prompt preview (collapsible)
+    const previewEl = document.createElement('div');
+    previewEl.className = 'template-prompt-preview';
+    previewEl.dataset.expanded = 'false';
+    previewEl.textContent = t.promptPrefix || '';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'toggle-preview-btn';
+    toggleBtn.textContent = 'プロンプトを表示';
+    toggleBtn.addEventListener('click', () => {
+      const expanded = previewEl.dataset.expanded === 'true';
+      previewEl.dataset.expanded = expanded ? 'false' : 'true';
+      toggleBtn.textContent = expanded ? 'プロンプトを表示' : 'プロンプトを隠す';
+    });
+
+    card.appendChild(toggleBtn);
+    card.appendChild(previewEl);
+
+    // Output sections chips
+    if (Array.isArray(t.outputSections) && t.outputSections.length > 0) {
+      const chipsWrap = document.createElement('div');
+      chipsWrap.className = 'template-sections';
+      t.outputSections.forEach((sec) => {
+        const chip = document.createElement('span');
+        chip.className = 'section-chip';
+        chip.textContent = sec;
+        chipsWrap.appendChild(chip);
+      });
+      card.appendChild(chipsWrap);
+    }
+
+    return card;
+  };
+
+  const renderTemplateList = async (templates) => {
+    const area = document.getElementById('template-list-area');
+    if (!area) return;
+    area.innerHTML = '';
+
+    const favs = await loadFavoriteTemplates();
+    const favSet = new Set(favs);
+
+    // Group by category
+    const byCategory = {};
+    templates.forEach((t) => {
+      const cat = t.category || 'other';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(t);
+    });
+
+    const sortedCats = [
+      ...CATEGORY_ORDER.filter((c) => byCategory[c]),
+      ...Object.keys(byCategory).filter((c) => !CATEGORY_ORDER.includes(c)),
+    ];
+
+    sortedCats.forEach((cat) => {
+      const section = document.createElement('div');
+      section.className = 'template-category-section';
+
+      const title = document.createElement('div');
+      title.className = 'template-category-title';
+      title.textContent = CATEGORY_LABELS[cat] || cat;
+      section.appendChild(title);
+
+      const cards = document.createElement('div');
+      cards.className = 'template-cards';
+      byCategory[cat].forEach((t) => {
+        cards.appendChild(buildTemplateCard(t, favSet));
+      });
+      section.appendChild(cards);
+      area.appendChild(section);
+    });
+  };
+
+  const loadAndRenderTemplates = async () => {
+    const area = document.getElementById('template-list-area');
+    if (!area) return;
+    try {
+      // Fetch prompts.json via chrome.runtime.getURL if available,
+      // else fall back to a relative path
+      let templates = [];
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+        const url = chrome.runtime.getURL('src/templates/prompts.json');
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const json = await resp.json();
+          templates = (json && Array.isArray(json.templates)) ? json.templates : [];
+        }
+      }
+      if (templates.length === 0) {
+        area.innerHTML = '<p style="font-size:13px;color:#b91c1c;">テンプレートの読み込みに失敗しました。拡張機能を再読み込みしてください。</p>';
+        return;
+      }
+      await renderTemplateList(templates);
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} loadAndRenderTemplates failed`, err && err.message ? err.message : err);
+      area.innerHTML = '<p style="font-size:13px;color:#b91c1c;">テンプレートの読み込みに失敗しました。拡張機能を再読み込みしてください。</p>';
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+
   const init = () => {
     elements.form = document.getElementById('api-key-form');
     elements.apiKeyInput = document.getElementById('api-key-input');
@@ -656,18 +849,21 @@
       }
     });
 
-    // Listen for license / history changes to keep the UI in sync — covers
-    // both the side-panel writing new entries and any storage edit performed
-    // from the same page via the Storage API.
+    // Listen for license / history / favorites changes to keep the UI in sync
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
       chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== 'local' || !changes) return;
-        if ('license' in changes) {
-          refreshHistorySection().catch(() => {});
-          refreshLicenseStatus().catch(() => {});
+        if (area === 'local' && changes) {
+          if ('license' in changes) {
+            refreshHistorySection().catch(() => {});
+            refreshLicenseStatus().catch(() => {});
+          }
+          if ('history' in changes) {
+            loadHistory().catch(() => {});
+          }
         }
-        if ('history' in changes) {
-          loadHistory().catch(() => {});
+        // Re-render template list when favorites are synced from another device
+        if (area === 'sync' && changes && 'favoriteTemplates' in changes) {
+          loadAndRenderTemplates().catch(() => {});
         }
       });
     }
@@ -675,6 +871,7 @@
     refreshKeyStatus();
     refreshLicenseStatus();
     refreshHistorySection();
+    loadAndRenderTemplates();
     console.log(`${LOG_PREFIX} options page loaded`);
   };
 
