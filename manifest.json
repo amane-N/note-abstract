@@ -14,11 +14,13 @@
       "js": [
         "src/lib/crypto.js",
         "src/lib/storage.js",
+        "src/lib/license.js",
         "src/lib/note-parser.js",
         "src/lib/nano-summarizer.js",
         "src/lib/gemini-client.js",
         "src/lib/predictor.js",
         "src/lib/keyword-suggester.js",
+        "src/lib/exporter.js",
         "src/content/side-panel.js",
         "src/content/content.js"
       ],

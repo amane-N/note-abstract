@@ -530,6 +530,120 @@
       color: #1a73e8;
       word-break: break-all;
     }
+    /* --- Sprint 8: export UI ----------------------------------------- */
+    .tab-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+    .tab-header-row h3 { margin: 0; }
+    .export-btn {
+      appearance: none;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #1a73e8;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .export-btn:hover {
+      background: #eff6ff;
+      border-color: #1a73e8;
+    }
+    .export-btn[data-locked='true'] { display: none; }
+    .panel:not([data-premium='true']) .export-btn { display: none; }
+    .export-menu-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2147483647;
+    }
+    .export-menu-overlay[data-open='true'] { display: flex; }
+    .export-menu {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 16px 18px;
+      min-width: 240px;
+      max-width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .export-menu h4 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: #1a1a1a;
+    }
+    .export-menu-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .export-menu-list button {
+      width: 100%;
+      text-align: left;
+      appearance: none;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #1f2937;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .export-menu-list button:hover {
+      background: #eff6ff;
+      border-color: #1a73e8;
+      color: #1d4ed8;
+    }
+    .export-menu-cancel {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 4px;
+      width: 100%;
+      text-align: center;
+    }
+    .export-menu-cancel:hover { color: #1a1a1a; }
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(20px);
+      background: #1f2937;
+      color: #ffffff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+      opacity: 0;
+      transition: opacity 180ms ease, transform 180ms ease;
+      pointer-events: none;
+      z-index: 11;
+      max-width: 90%;
+      text-align: center;
+    }
+    .toast[data-active='true'] {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast[data-tone='error'] { background: #b91c1c; }
+    .history-modal-export-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
   `;
 
   // ---------------------------------------------------------------------------
@@ -624,7 +738,10 @@
         <div class="tab-panels">
           <section class="tab-panel" data-tab="summary" data-active="true">
             <div class="reading-time" data-role="reading-time">— 読了時間</div>
-            <h3>アブストラクト</h3>
+            <div class="tab-header-row">
+              <h3>アブストラクト</h3>
+              <button type="button" class="export-btn" data-role="summary-export" data-export-source="summary" aria-label="この要約をエクスポート">エクスポート ▾</button>
+            </div>
             <div class="abstract-text" data-role="abstract">記事を開いてサイドパネルを起動すると、ここに要約が表示されます。</div>
             <h3>キーポイント</h3>
             <ul class="key-points" data-role="key-points"></ul>
@@ -647,6 +764,10 @@
                 <span data-role="prediction-loader-text">予測を生成中…</span>
               </div>
               <div class="inline-error" data-role="prediction-error" role="alert"></div>
+              <div class="tab-header-row">
+                <h3>結果</h3>
+                <button type="button" class="export-btn" data-role="prediction-export" data-export-source="prediction" aria-label="予測結果をエクスポート">エクスポート ▾</button>
+              </div>
               <div data-role="prediction-result">
                 <div class="placeholder">テンプレートを選んで「予測する」ボタンを押すと、3 セクション構造の批判的分析が表示されます。</div>
               </div>
@@ -668,6 +789,10 @@
               </div>
               <div class="inline-error" data-role="related-error" role="alert"></div>
               <p class="related-meta" data-role="related-meta" hidden></p>
+              <div class="tab-header-row">
+                <h3>関連キーワード</h3>
+                <button type="button" class="export-btn" data-role="related-export" data-export-source="related" aria-label="関連キーワードをエクスポート">エクスポート ▾</button>
+              </div>
               <div data-role="related-result">
                 <div class="placeholder">「キーワードを提案」ボタンを押すと、関連キーワード 5 つと note 検索リンクが表示されます。</div>
               </div>
@@ -686,6 +811,7 @@
                 <h3>履歴</h3>
                 <span class="history-count-badge" data-role="history-count">0</span>
                 <span style="font-size:11px;color:#64748b;">(最新 20 件)</span>
+                <button type="button" class="export-btn" data-role="history-export" data-export-source="history-latest" aria-label="最新の履歴をエクスポート" style="margin-left:auto;">エクスポート ▾</button>
               </div>
               <ul class="history-list" data-role="history-list"></ul>
               <div class="history-empty" data-role="history-empty" hidden>
@@ -699,6 +825,9 @@
                 <button type="button" class="history-modal-close" data-role="history-modal-close" aria-label="閉じる">×</button>
                 <h3 data-role="history-modal-title">詳細</h3>
                 <div data-role="history-modal-body"></div>
+                <div class="history-modal-export-row">
+                  <button type="button" class="export-btn" data-role="history-modal-export" data-export-source="history-modal" aria-label="この履歴をエクスポート">エクスポート ▾</button>
+                </div>
               </div>
             </div>
           </section>
@@ -716,6 +845,19 @@
             </div>
           </section>
         </div>
+        <!-- Sprint 8: shared export popover + toast (panel-level overlays) -->
+        <div class="export-menu-overlay" data-role="export-menu-overlay">
+          <div class="export-menu" role="dialog" aria-modal="true" aria-label="エクスポート先を選択">
+            <h4>エクスポート先を選択</h4>
+            <ul class="export-menu-list">
+              <li><button type="button" data-role="export-pick" data-format="obsidian">Obsidian (Markdown)</button></li>
+              <li><button type="button" data-role="export-pick" data-format="notion">Notion</button></li>
+              <li><button type="button" data-role="export-pick" data-format="note-draft">note 下書きへ送信</button></li>
+            </ul>
+            <button type="button" class="export-menu-cancel" data-role="export-menu-cancel">キャンセル</button>
+          </div>
+        </div>
+        <div class="toast" data-role="toast" role="status" aria-live="polite"></div>
       `;
 
       root.appendChild(panel);
@@ -762,6 +904,16 @@
         historyModalClose: panel.querySelector('[data-role="history-modal-close"]'),
         historyModalTitle: panel.querySelector('[data-role="history-modal-title"]'),
         historyModalBody: panel.querySelector('[data-role="history-modal-body"]'),
+        // Sprint 8: export controls
+        summaryExportBtn: panel.querySelector('[data-role="summary-export"]'),
+        predictionExportBtn: panel.querySelector('[data-role="prediction-export"]'),
+        relatedExportBtn: panel.querySelector('[data-role="related-export"]'),
+        historyExportBtn: panel.querySelector('[data-role="history-export"]'),
+        historyModalExportBtn: panel.querySelector('[data-role="history-modal-export"]'),
+        exportMenuOverlay: panel.querySelector('[data-role="export-menu-overlay"]'),
+        exportMenuCancel: panel.querySelector('[data-role="export-menu-cancel"]'),
+        exportPickButtons: panel.querySelectorAll('[data-role="export-pick"]'),
+        toast: panel.querySelector('[data-role="toast"]'),
       };
       this._predictionTemplatesLoaded = false;
       this._predictionRunning = false;
@@ -771,6 +923,14 @@
       this._currentTemplateId = 'standard';
       this._articleContext = { url: '', title: '' };
       this._historyEntries = [];
+      // Sprint 8: export state
+      this._isPremium = false;
+      this._lastSummary = null;
+      this._lastPrediction = null;
+      this._lastRelated = null;
+      this._modalEntry = null;
+      this._pendingExportEntry = null;
+      this._toastTimer = null;
     }
 
     _bindEvents() {
@@ -859,9 +1019,48 @@
         });
       }
 
+      // Sprint 8: export button wiring (one shared popover for all 4 sources)
+      const wireExportBtn = (btn, sourceKey) => {
+        if (!btn) return;
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          this._openExportMenu(sourceKey);
+        });
+      };
+      wireExportBtn(this.elements.summaryExportBtn, 'summary');
+      wireExportBtn(this.elements.predictionExportBtn, 'prediction');
+      wireExportBtn(this.elements.relatedExportBtn, 'related');
+      wireExportBtn(this.elements.historyExportBtn, 'history-latest');
+      wireExportBtn(this.elements.historyModalExportBtn, 'history-modal');
+
+      if (this.elements.exportMenuCancel) {
+        this.elements.exportMenuCancel.addEventListener('click', () => {
+          this._closeExportMenu();
+        });
+      }
+      if (this.elements.exportMenuOverlay) {
+        this.elements.exportMenuOverlay.addEventListener('click', (e) => {
+          if (e.target === this.elements.exportMenuOverlay) {
+            this._closeExportMenu();
+          }
+        });
+      }
+      if (this.elements.exportPickButtons) {
+        this.elements.exportPickButtons.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const fmt = btn.dataset.format;
+            this._handleExportPick(fmt).catch((err) => {
+              console.warn('[note-abstract] export pick failed', err && err.message ? err.message : err);
+            });
+          });
+        });
+      }
+
       this._docKeyHandler = (e) => {
         if (e.key === 'Escape') {
-          if (this.elements.historyModalOverlay && !this.elements.historyModalOverlay.hidden) {
+          if (this.elements.exportMenuOverlay && this.elements.exportMenuOverlay.dataset.open === 'true') {
+            this._closeExportMenu();
+          } else if (this.elements.historyModalOverlay && !this.elements.historyModalOverlay.hidden) {
             this._closeHistoryModal();
           } else if (this.opened) {
             this.close();
@@ -965,6 +1164,14 @@
     }
 
     _applyLicenseState(isPremium) {
+      // Sprint 8: stash premium flag and toggle a panel-level data attribute so
+      // CSS can hide/show every export button in one place. This guarantees the
+      // free / BYOK tier never sees an export button — meeting the §6 Sprint 8
+      // acceptance check ("無料層・BYOK 層ではエクスポートボタンが表示されない").
+      this._isPremium = !!isPremium;
+      if (this.panel) {
+        this.panel.dataset.premium = isPremium ? 'true' : 'false';
+      }
       const tabBtn = Array.from(this.elements.tabs).find(
         (b) => b.dataset.tab === 'history'
       );
@@ -1300,6 +1507,9 @@
       const body = this.elements.historyModalBody;
       if (!overlay || !body) return;
 
+      // Sprint 8: remember the entry so the modal's export button can use it.
+      this._modalEntry = entry || null;
+
       if (titleEl) titleEl.textContent = entry.title || '(タイトル不明)';
 
       body.innerHTML = '';
@@ -1393,6 +1603,8 @@
     setPrediction(result) {
       const container = this.elements.predictionResult;
       if (!container) return;
+      // Sprint 8: capture prediction for export.
+      this._lastPrediction = result || null;
       container.innerHTML = '';
       const sections = (result && result.sections) || {};
       const order = (result && result.outputSections) || Object.keys(sections);
@@ -1419,6 +1631,8 @@
     setRelated(result) {
       const container = this.elements.relatedResult;
       if (!container) return;
+      // Sprint 8: capture keywords for export.
+      this._lastRelated = result || null;
       container.innerHTML = '';
       const items = (result && result.items) || [];
       if (!items.length) {
@@ -1606,17 +1820,24 @@
     setSummary(text) {
       this.elements.abstract.textContent = text;
       this.elements.fallback.hidden = true;
+      // Sprint 8: capture summary state for export.
+      if (!this._lastSummary) this._lastSummary = {};
+      this._lastSummary.summary = text || '';
     }
 
     setKeyPoints(items) {
       const ul = this.elements.keyPoints;
       ul.innerHTML = '';
       const list = Array.isArray(items) ? items : [];
-      list.slice(0, 5).forEach((point) => {
+      const sliced = list.slice(0, 5);
+      sliced.forEach((point) => {
         const li = document.createElement('li');
         li.textContent = point;
         ul.appendChild(li);
       });
+      // Sprint 8: capture key points for export.
+      if (!this._lastSummary) this._lastSummary = {};
+      this._lastSummary.keyPoints = sliced;
     }
 
     setReadingTime(label) {
@@ -1641,11 +1862,195 @@
       this._summaryRan = true;
     }
 
+    // -----------------------------------------------------------------------
+    // Sprint 8: export helpers.
+    //
+    // _buildEntryFromSource(sourceKey) collects whatever in-panel state is
+    // relevant for the source tab and returns an entry-shaped object that the
+    // Exporter module can render. Each source picks only the fields it owns,
+    // so e.g. exporting the Summary tab does NOT include the (possibly stale)
+    // prediction text from a previous run.
+    // -----------------------------------------------------------------------
+    _buildEntryFromSource(sourceKey) {
+      const baseUrl = this._articleContext.url || (typeof location !== 'undefined' ? location.href : '');
+      const baseTitle = this._articleContext.title
+        || (typeof document !== 'undefined' ? document.title : '');
+      const base = {
+        url: baseUrl,
+        title: baseTitle,
+        createdAt: new Date().toISOString(),
+      };
+
+      if (sourceKey === 'history-modal') {
+        const entry = this._modalEntry || {};
+        return {
+          ...base,
+          ...entry,
+          // Always prefer the entry's own metadata when present.
+          url: entry.url || base.url,
+          title: entry.title || base.title,
+          createdAt: entry.createdAt || base.createdAt,
+        };
+      }
+
+      if (sourceKey === 'history-latest') {
+        const list = Array.isArray(this._historyEntries) ? this._historyEntries : [];
+        const latest = list[0];
+        if (!latest) return null;
+        return { ...base, ...latest };
+      }
+
+      if (sourceKey === 'summary') {
+        const s = this._lastSummary || {};
+        if (!s.summary && !(Array.isArray(s.keyPoints) && s.keyPoints.length)) {
+          return null;
+        }
+        return {
+          ...base,
+          summary: s.summary || '',
+          keyPoints: Array.isArray(s.keyPoints) ? s.keyPoints : [],
+        };
+      }
+
+      if (sourceKey === 'prediction') {
+        const p = this._lastPrediction;
+        if (!p) return null;
+        const sections = (p && p.sections) || {};
+        const order = (p && p.outputSections) || Object.keys(sections);
+        const text = order
+          .filter((k) => typeof sections[k] === 'string' && sections[k].trim().length > 0)
+          .map((k) => `■ ${k}\n${sections[k].trim()}`)
+          .join('\n\n');
+        if (!text) return null;
+        return {
+          ...base,
+          prediction: text,
+          templateId: p.templateId || this._currentTemplateId || '',
+        };
+      }
+
+      if (sourceKey === 'related') {
+        const r = this._lastRelated;
+        const items = (r && Array.isArray(r.items)) ? r.items : [];
+        const keywords = items.map((i) => (i && typeof i.keyword === 'string' ? i.keyword : '')).filter(Boolean);
+        if (keywords.length === 0) return null;
+        return { ...base, keywords };
+      }
+
+      return null;
+    }
+
+    _openExportMenu(sourceKey) {
+      // Premium gate: even if a button somehow becomes visible, refuse to
+      // proceed when the user is not premium.
+      if (!this._isPremium) {
+        this._showToast('エクスポートは有料層で利用できます。', 'error');
+        return;
+      }
+      const entry = this._buildEntryFromSource(sourceKey);
+      if (!entry) {
+        this._showToast('エクスポートできる内容がまだありません。', 'error');
+        return;
+      }
+      this._pendingExportEntry = entry;
+      const overlay = this.elements.exportMenuOverlay;
+      if (overlay) overlay.dataset.open = 'true';
+    }
+
+    _closeExportMenu() {
+      const overlay = this.elements.exportMenuOverlay;
+      if (overlay) overlay.dataset.open = 'false';
+      this._pendingExportEntry = null;
+    }
+
+    async _handleExportPick(format) {
+      const ns = globalThis.__noteAbstract || {};
+      const entry = this._pendingExportEntry;
+      const exporter = ns.Exporter;
+      this._closeExportMenu();
+      if (!entry || !exporter) {
+        this._showToast('エクスポートに失敗しました。ページを再読み込みしてください。', 'error');
+        return;
+      }
+      let formatted = '';
+      let label = '';
+      try {
+        if (format === 'obsidian') {
+          formatted = exporter.toObsidian(entry);
+          label = 'Obsidian 形式';
+        } else if (format === 'notion') {
+          formatted = exporter.toNotion(entry);
+          label = 'Notion 形式';
+        } else if (format === 'note-draft') {
+          formatted = exporter.toNoteDraft(entry);
+          label = 'note 下書き形式';
+        } else {
+          this._showToast('未知のエクスポート形式です。', 'error');
+          return;
+        }
+      } catch (err) {
+        console.warn('[note-abstract] export format failed', err && err.message ? err.message : err);
+        this._showToast('テキストの整形に失敗しました。', 'error');
+        return;
+      }
+
+      let copied = false;
+      try {
+        copied = await exporter.copyToClipboard(formatted);
+      } catch (_) {
+        copied = false;
+      }
+      if (!copied) {
+        this._showToast('クリップボードへのコピーに失敗しました。', 'error');
+        return;
+      }
+
+      if (format === 'note-draft') {
+        // Open note.com/new in a new tab via the service worker. The clipboard
+        // write above already happened inside the user click gesture.
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+            chrome.runtime.sendMessage({ type: 'OPEN_NOTE_DRAFT' }, () => {
+              void chrome.runtime.lastError;
+            });
+          }
+        } catch (err) {
+          console.warn('[note-abstract] OPEN_NOTE_DRAFT send failed', err && err.message ? err.message : err);
+        }
+        this._showToast('note 下書きを開きます。クリップボードから貼り付けてください。');
+        return;
+      }
+
+      this._showToast(`${label}でクリップボードにコピーしました。`);
+    }
+
+    _showToast(message, tone) {
+      const toast = this.elements.toast;
+      if (!toast) return;
+      toast.textContent = message || '';
+      toast.dataset.tone = tone === 'error' ? 'error' : 'info';
+      toast.dataset.active = 'true';
+      if (this._toastTimer) {
+        clearTimeout(this._toastTimer);
+        this._toastTimer = null;
+      }
+      this._toastTimer = setTimeout(() => {
+        toast.dataset.active = 'false';
+        this._toastTimer = null;
+      }, 2400);
+    }
+
     // Reset all per-article DOM state so SPA navigation to a different article
     // doesn't leave stale content visible. User-preference state (template
     // choice, panel width, API key) is intentionally preserved.
     resetForNewArticle() {
       this._summaryRan = false;
+      // Sprint 8: clear per-article export state so we never accidentally
+      // export a previous article's content after SPA navigation.
+      this._lastSummary = null;
+      this._lastPrediction = null;
+      this._lastRelated = null;
+      this._closeExportMenu();
 
       // Summary tab: back to the loading-style placeholder.
       if (this.elements.abstract) {

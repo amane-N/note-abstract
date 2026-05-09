@@ -3,14 +3,22 @@
 const LOG_PREFIX = '[note-abstract:bg]';
 const NOTE_ARTICLE_RE = /^https:\/\/note\.com\/[^/]+\/n\/[^/?#]+/;
 
+// IMPORTANT: keep this list in lockstep with manifest.json's content_scripts.js
+// array (same files, same order). When the user updates the extension while a
+// note article tab is already open, manifest content_scripts do NOT auto-reinject;
+// instead the SW re-injects via this list. Any module missing here would be
+// silently undefined in the content world, leading to "license module not found"
+// or similar runtime gaps.
 const CONTENT_SCRIPT_FILES = [
   'src/lib/crypto.js',
   'src/lib/storage.js',
+  'src/lib/license.js',
   'src/lib/note-parser.js',
   'src/lib/nano-summarizer.js',
   'src/lib/gemini-client.js',
   'src/lib/predictor.js',
   'src/lib/keyword-suggester.js',
+  'src/lib/exporter.js',
   'src/content/side-panel.js',
   'src/content/content.js',
 ];
@@ -154,6 +162,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
     } catch (err) {
       console.warn(LOG_PREFIX, 'openOptionsPage failed', err && err.message ? err.message : err);
+      sendResponse({ ok: false, error: String(err) });
+    }
+    return true;
+  }
+  // Sprint 8: open the note.com new-post page in a fresh tab so the user can
+  // paste the clipboard contents into a draft. The clipboard write happens in
+  // the content script (still inside the user click gesture) before this
+  // message arrives, so by the time the new tab opens the text is already on
+  // the clipboard.
+  if (message && message.type === 'OPEN_NOTE_DRAFT') {
+    try {
+      chrome.tabs.create({ url: 'https://note.com/new' }, () => {
+        void chrome.runtime.lastError;
+        sendResponse({ ok: true });
+      });
+    } catch (err) {
+      console.warn(LOG_PREFIX, 'openNoteDraft failed', err && err.message ? err.message : err);
       sendResponse({ ok: false, error: String(err) });
     }
     return true;
