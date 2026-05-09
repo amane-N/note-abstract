@@ -639,6 +639,20 @@ Sprint 1 で環境を構築し、以降の Sprint ではその環境を再利用
 4. **パフォーマンス**: 想定時間内に動くか
 5. **保守性**: コードが読みやすく拡張可能か
 
+## 4.6 サブエージェントによる実装
+
+§4.1〜§4.5 で定義した 3 エージェント構成は、Claude Code の
+サブエージェント機能 (`.claude/agents/` 配下のファイル) として実装されている。
+
+| 役割 | サブエージェントファイル | 使用 model |
+|------|--------------------------|------------|
+| Planner | `.claude/agents/planner.md` | opus |
+| Generator | `.claude/agents/generator.md` | sonnet |
+| Evaluator | `.claude/agents/evaluator.md` | sonnet |
+
+Sprint 6 以降のオーケストレーション手順は CLAUDE.md の「サブエージェント運用」
+セクションを参照。
+
 ---
 
 # §5 Sprint 構成 (全 11 Sprint)

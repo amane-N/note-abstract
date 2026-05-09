@@ -70,3 +70,41 @@ Chrome 138 未満 / 非 Chromium ブラウザ / モバイル等の検出ロジ�
 - コミットメッセージ: `[Sprint N] <タイトル>` + 主要機能の箇条書き + 合格基準クリア状況。
 
 詳細仕様は `# note アブストラクト - Claude Code 統合指示書.md` を参照。
+
+## サブエージェント運用 (Sprint 6 以降)
+
+このプロジェクトでは Sprint 6 以降、`.claude/agents/` 配下の 3 サブエージェントを使用してハーネス設計を運用する。
+
+### サブエージェントの構成
+
+- **planner** (`.claude/agents/planner.md`): 仕様策定。新機能や曖昧さの解決を担当
+- **generator** (`.claude/agents/generator.md`): 実装。1 Sprint を 1 単位として作業
+- **evaluator** (`.claude/agents/evaluator.md`): Playwright MCP による品質ゲート
+
+### 標準オーケストレーション (Sprint 実行時)
+
+ユーザーが「Sprint N を進めて」等と指示した際の流れ:
+
+1. メイン Claude Code が `note-abstract-master.md` §6 の該当 Sprint を確認
+2. `generator` サブエージェントを起動し、Sprint 実装を依頼
+3. Generator の自己評価通過後、`evaluator` サブエージェントを起動して検証
+4. PASS なら `[Sprint N] <タイトル>` の規約でコミットしてユーザーに報告
+5. FAIL なら Evaluator のレポートを Generator にフィードバックし、再実装ループ
+6. ユーザーの「次の Sprint へ」指示まで停止
+
+### Planner サブエージェントの起動条件
+
+以下の状況で proactive に起動する:
+
+- Sprint 中に仕様の曖昧さが発覚した
+- ユーザーが新機能や仕様変更を依頼した
+- 設計上の競合 (ある仕様と別の仕様の不整合) が見つかった
+
+### サブエージェント間の境界
+
+| 操作 | planner | generator | evaluator |
+|------|---------|-----------|-----------|
+| `note-abstract-master.md` 編集 | ○ | × | × |
+| `src/` 配下の編集 | × | ○ | × |
+| Playwright MCP 実行 | × | × | ○ |
+| git commit | × | △ (Evaluator 通過後) | × |
