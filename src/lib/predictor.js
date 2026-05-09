@@ -202,6 +202,12 @@
         wrap.code = 'TIMEOUT';
         throw wrap;
       }
+      // Sprint 9: route through ErrorClassifier so the surfaced message always
+      // tells the user what to do next. Preserve the original on .cause so the
+      // panel can still inspect the type.
+      if (ns.ErrorClassifier && typeof ns.ErrorClassifier.wrap === 'function') {
+        throw ns.ErrorClassifier.wrap(err);
+      }
       throw err;
     } finally {
       clearTimeout(timeout);

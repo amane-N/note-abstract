@@ -182,6 +182,32 @@
     }
   };
 
+  // Sprint 9 §3.6.4 — produce an abstract + key-points pair via the BYOK
+  // cloud route (gemini-2.5-flash-lite). Used when Nano is unavailable or
+  // still downloading. Returns { tldr, keyPointsRaw }.
+  const runCloudSummary = async (article, apiKey) => {
+    const [tldr, keyPointsRaw] = await Promise.all([
+      ns.NanoSummarizer.summarizeCloud(article.body, 'tldr', { apiKey }),
+      ns.NanoSummarizer.summarizeCloud(article.body, 'key-points', { apiKey }),
+    ]);
+    return { tldr, keyPointsRaw };
+  };
+
+  // Sprint 9 — funnel any thrown summarization error through ErrorClassifier
+  // so the user always sees a Japanese, actionable message.
+  const showSummaryError = (panel, err, fallbackMessage) => {
+    let friendly = null;
+    if (ns.ErrorClassifier && typeof ns.ErrorClassifier.friendly === 'function') {
+      friendly = ns.ErrorClassifier.friendly(err);
+    }
+    const message = (friendly && friendly.full)
+      || (err && err.message)
+      || fallbackMessage
+      || '要約を生成できませんでした。ページを再読み込みしてから再度お試しください。';
+    panel.setStage('done');
+    panel.showSummaryFallback(message);
+  };
+
   const runSummaryWorkflow = async (panel) => {
     // 記事 DOM が遅延描画されるケースを救うため短くリトライする (~1.5s)。
     // 既に成功キャッシュがあればループは即抜ける。
@@ -193,7 +219,7 @@
     if (!article || !article.ok) {
       panel.setStage('error');
       panel.showSummaryFallback(
-        '記事を取得できませんでした。ページを再読み込みしてから再度お試しください。'
+        '記事が取得できません。ページを再読み込みしてください。'
       );
       return;
     }
@@ -208,26 +234,157 @@
 
     if (!ns.NanoSummarizer) {
       panel.setStage('done');
-      panel.showSummaryFallback('要約モジュールの読み込みに失敗しました。');
+      panel.showSummaryFallback('要約モジュールの読み込みに失敗しました。拡張機能を再読み込みしてください。');
       return;
     }
+
+    // Reset Sprint 9 banners from any previous run.
+    if (typeof panel.hideSummaryByokNotice === 'function') panel.hideSummaryByokNotice();
+    if (typeof panel.hideSummaryDownloadProgress === 'function') panel.hideSummaryDownloadProgress();
+    if (typeof panel.setSummaryEngine === 'function') panel.setSummaryEngine(null);
 
     const availability = await ns.NanoSummarizer.checkAvailability();
-    if (availability.status === 'unsupported' || availability.status === 'no') {
-      panel.setStage('done');
-      panel.showSummaryFallback(
-        'お使いの環境ではローカル AI 機能が利用できません。Sprint 9 で BYOK 誘導を実装予定です。'
-      );
+
+    // Read API key once — reused for both fallback paths below.
+    let apiKey = null;
+    try {
+      if (ns.Storage && typeof ns.Storage.getApiKey === 'function') {
+        apiKey = await ns.Storage.getApiKey();
+      }
+    } catch (_) {
+      apiKey = null;
+    }
+    const hasApiKey = typeof apiKey === 'string' && apiKey.trim().length > 0;
+
+    // ---- §3.6.4: Nano not available at all ---------------------------------
+    if (
+      availability.status === 'unsupported' ||
+      availability.status === 'no' ||
+      availability.status === 'error'
+    ) {
+      if (typeof panel.showSummaryByokNotice === 'function') {
+        panel.showSummaryByokNotice({ hasApiKey });
+      }
+      if (!hasApiKey) {
+        panel.setStage('done');
+        panel.showSummaryFallback(
+          'お使いの環境ではローカル AI 機能が利用できません。設定ページで Google AI Studio の API キーを登録すると要約が利用できます。'
+        );
+        return;
+      }
+      // BYOK fallback — gemini-2.5-flash-lite.
+      panel.setStage('generating');
+      try {
+        const { tldr, keyPointsRaw } = await runCloudSummary(article, apiKey);
+        const keyPoints = parseKeyPointsOutput(keyPointsRaw);
+        panel.setSummary(tldr || '');
+        panel.setKeyPoints(keyPoints.slice(0, 5));
+        if (typeof panel.setSummaryEngine === 'function') panel.setSummaryEngine('cloud');
+        panel.setStage('done');
+        saveHistoryAfterSummary(panel, article, tldr, keyPoints).catch(() => {});
+      } catch (err) {
+        console.warn(`${LOG_PREFIX} cloud summary failed`, err && err.message ? err.message : err);
+        showSummaryError(panel, err);
+      }
       return;
     }
 
-    panel.setStage('generating');
+    // ---- §3.6.5: Nano available but model needs to download ----------------
+    if (availability.status === 'after-download') {
+      if (typeof panel.showSummaryDownloadProgress === 'function') {
+        panel.showSummaryDownloadProgress({ hasApiKey });
+      }
 
+      // Kick off the Nano summarization with a progress callback. Both calls
+      // (tldr + key-points) share the model — Chrome installs it once.
+      const onProgress = (loaded, total) => {
+        if (typeof panel.setSummaryDownloadProgress === 'function') {
+          panel.setSummaryDownloadProgress(loaded, total);
+        }
+      };
+
+      // If BYOK is configured, run the cloud fallback in parallel so the user
+      // gets results immediately. The Nano summary completes in the background
+      // and we surface a toast when the model finishes downloading.
+      const nanoPromise = (async () => {
+        try {
+          panel.setStage('generating');
+          const [tldr, keyPointsRaw] = await Promise.all([
+            ns.NanoSummarizer.summarize(article.body, {
+              type: 'tldr',
+              length: 'medium',
+              outputLanguage: 'ja',
+              expectedInputLanguages: ['ja'],
+              onProgress,
+              sharedContext:
+                'これは note.com に投稿された日本語の記事本文です。論文のアブストラクトに近い構成 (背景・主題・主張・根拠・結論) で、要点を漏らさずに読み応えのある日本語の要約を作成してください。出力は必ず日本語のみで、英訳や翻訳は出力しないでください。',
+            }),
+            ns.NanoSummarizer.summarize(article.body, {
+              type: 'key-points',
+              length: 'medium',
+              outputLanguage: 'ja',
+              expectedInputLanguages: ['ja'],
+              onProgress,
+              sharedContext:
+                '日本語の記事から、重要な論点・主張・根拠を 5 個前後の箇条書きで抽出してください。各項目は短く具体的な日本語で書き、英訳は出力しないでください。',
+            }),
+          ]);
+          return { ok: true, tldr, keyPointsRaw };
+        } catch (err) {
+          return { ok: false, err };
+        }
+      })();
+
+      if (hasApiKey) {
+        // Cloud-first fast path so the user does not have to wait for the
+        // Nano download to finish.
+        try {
+          const { tldr, keyPointsRaw } = await runCloudSummary(article, apiKey);
+          const keyPoints = parseKeyPointsOutput(keyPointsRaw);
+          panel.setSummary(tldr || '');
+          panel.setKeyPoints(keyPoints.slice(0, 5));
+          if (typeof panel.setSummaryEngine === 'function') panel.setSummaryEngine('cloud');
+          panel.setStage('done');
+          saveHistoryAfterSummary(panel, article, tldr, keyPoints).catch(() => {});
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} cloud-while-downloading failed`, err && err.message ? err.message : err);
+          showSummaryError(panel, err);
+        }
+        // Wait for Nano to finish in the background just to surface the toast
+        // and to hide the progress bar. We do NOT overwrite the cloud result.
+        nanoPromise.then((res) => {
+          if (typeof panel.hideSummaryDownloadProgress === 'function') panel.hideSummaryDownloadProgress();
+          if (res && res.ok) {
+            if (typeof panel.showToast === 'function') {
+              panel.showToast('ローカル AI モデルの準備が完了しました。次回からはローカルで要約します。');
+            }
+          }
+        }).catch(() => {});
+        return;
+      }
+
+      // No BYOK key — wait for Nano. The progress bar is the user feedback.
+      const res = await nanoPromise;
+      if (typeof panel.hideSummaryDownloadProgress === 'function') panel.hideSummaryDownloadProgress();
+      if (res && res.ok) {
+        const keyPoints = parseKeyPointsOutput(res.keyPointsRaw);
+        panel.setSummary(res.tldr || '');
+        panel.setKeyPoints(keyPoints.slice(0, 5));
+        if (typeof panel.setSummaryEngine === 'function') panel.setSummaryEngine('nano');
+        panel.setStage('done');
+        if (typeof panel.showToast === 'function') {
+          panel.showToast('ローカル AI モデルの準備が完了しました。');
+        }
+        saveHistoryAfterSummary(panel, article, res.tldr, keyPoints).catch(() => {});
+      } else {
+        showSummaryError(panel, res && res.err);
+      }
+      return;
+    }
+
+    // ---- Default: Nano available and ready ---------------------------------
+    panel.setStage('generating');
     try {
-      // sharedContext + outputLanguage で日本語出力を強制する。length は 'medium' に
-      // 引き上げて、論文アブストラクトに近い読み応えのある分量にする。Built-in
-      // Summarizer が指定オプションを拒否した場合は catch でフォールバック表示に
-      // 切り替わるため、回帰リスクは限定的。
       const [tldr, keyPointsRaw] = await Promise.all([
         ns.NanoSummarizer.summarize(article.body, {
           type: 'tldr',
@@ -249,15 +406,28 @@
       const keyPoints = parseKeyPointsOutput(keyPointsRaw);
       panel.setSummary(tldr || '');
       panel.setKeyPoints(keyPoints.slice(0, 5));
+      if (typeof panel.setSummaryEngine === 'function') panel.setSummaryEngine('nano');
       panel.setStage('done');
-      // Auto-save to history (premium only, fail-soft).
       saveHistoryAfterSummary(panel, article, tldr, keyPoints).catch(() => {});
     } catch (err) {
       console.warn(`${LOG_PREFIX} summarization error`, err && err.message ? err.message : err);
-      panel.setStage('done');
-      panel.showSummaryFallback(
-        '要約を生成できませんでした。ページを再読み込みするか、Sprint 9 公開後に BYOK で再試行してください。'
-      );
+      // If Nano errored mid-flight but BYOK is configured, retry on cloud.
+      if (hasApiKey) {
+        try {
+          const { tldr, keyPointsRaw } = await runCloudSummary(article, apiKey);
+          const keyPoints = parseKeyPointsOutput(keyPointsRaw);
+          panel.setSummary(tldr || '');
+          panel.setKeyPoints(keyPoints.slice(0, 5));
+          if (typeof panel.setSummaryEngine === 'function') panel.setSummaryEngine('cloud');
+          panel.setStage('done');
+          saveHistoryAfterSummary(panel, article, tldr, keyPoints).catch(() => {});
+          return;
+        } catch (cloudErr) {
+          showSummaryError(panel, cloudErr);
+          return;
+        }
+      }
+      showSummaryError(panel, err);
     }
   };
 

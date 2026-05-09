@@ -151,6 +151,11 @@
         wrap.code = 'TIMEOUT';
         throw wrap;
       }
+      // Sprint 9: funnel through ErrorClassifier so the panel always shows a
+      // friendly Japanese message + actionable next step.
+      if (ns.ErrorClassifier && typeof ns.ErrorClassifier.wrap === 'function') {
+        throw ns.ErrorClassifier.wrap(err);
+      }
       throw err;
     } finally {
       clearTimeout(timeout);

@@ -272,6 +272,63 @@
     .byok-notice .open-options-btn {
       margin-top: 4px;
     }
+    /* Sprint 9: Nano model download progress bar */
+    .download-progress {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .download-progress[hidden] { display: none; }
+    .download-progress-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .download-progress-track {
+      width: 100%;
+      height: 6px;
+      background: #dbeafe;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .download-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+      border-radius: 999px;
+      transition: width 200ms ease;
+    }
+    .download-progress-hint {
+      margin: 6px 0 0;
+      font-size: 11px;
+      color: #475569;
+    }
+    /* Sprint 9: badge identifying the summary engine (Nano vs cloud BYOK) */
+    .engine-badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 3px 8px;
+      background: #f1f5f9;
+      color: #475569;
+      border-radius: 999px;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }
+    .engine-badge[hidden] { display: none; }
+    .engine-badge[data-engine='cloud'] {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .engine-badge[data-engine='nano'] {
+      background: #ecfdf5;
+      color: #047857;
+    }
     .controls-row {
       display: flex;
       align-items: center;
@@ -738,6 +795,23 @@
         <div class="tab-panels">
           <section class="tab-panel" data-tab="summary" data-active="true">
             <div class="reading-time" data-role="reading-time">— 読了時間</div>
+            <!-- Sprint 9: Nano unsupported / BYOK guidance banner -->
+            <div class="byok-notice" data-role="summary-byok-notice" hidden>
+              <h4 data-role="summary-byok-title">お使いの環境ではローカル AI 機能が利用できません</h4>
+              <p data-role="summary-byok-body">Google AI Studio の無料 API キーを設定すると、すべての機能が利用可能になります。</p>
+              <button type="button" class="open-options-btn" data-role="summary-byok-open-options">設定ページを開く</button>
+            </div>
+            <!-- Sprint 9: download progress bar (only shown while Nano model is downloading) -->
+            <div class="download-progress" data-role="summary-download-progress" hidden>
+              <div class="download-progress-label">
+                <span data-role="summary-download-label">ローカル AI モデルをダウンロード中…</span>
+                <span data-role="summary-download-percent">0%</span>
+              </div>
+              <div class="download-progress-track">
+                <div class="download-progress-bar" data-role="summary-download-bar" style="width:0%"></div>
+              </div>
+              <p class="download-progress-hint" data-role="summary-download-hint">完了するまでお待ちください。API キーを設定済みの場合はクラウド経由で先に動作します。</p>
+            </div>
             <div class="tab-header-row">
               <h3>アブストラクト</h3>
               <button type="button" class="export-btn" data-role="summary-export" data-export-source="summary" aria-label="この要約をエクスポート">エクスポート ▾</button>
@@ -746,6 +820,8 @@
             <h3>キーポイント</h3>
             <ul class="key-points" data-role="key-points"></ul>
             <div class="fallback" data-role="fallback" hidden></div>
+            <!-- Sprint 9: tag indicating which engine produced the summary -->
+            <div class="engine-badge" data-role="summary-engine-badge" hidden></div>
           </section>
           <section class="tab-panel" data-tab="prediction">
             <div class="byok-notice" data-role="prediction-byok-notice" hidden>
@@ -873,6 +949,17 @@
         abstract: panel.querySelector('[data-role="abstract"]'),
         keyPoints: panel.querySelector('[data-role="key-points"]'),
         fallback: panel.querySelector('[data-role="fallback"]'),
+        // Sprint 9: Nano-unsupported guidance + download progress + engine badge
+        summaryByokNotice: panel.querySelector('[data-role="summary-byok-notice"]'),
+        summaryByokTitle: panel.querySelector('[data-role="summary-byok-title"]'),
+        summaryByokBody: panel.querySelector('[data-role="summary-byok-body"]'),
+        summaryByokOpenOptions: panel.querySelector('[data-role="summary-byok-open-options"]'),
+        summaryDownloadProgress: panel.querySelector('[data-role="summary-download-progress"]'),
+        summaryDownloadLabel: panel.querySelector('[data-role="summary-download-label"]'),
+        summaryDownloadPercent: panel.querySelector('[data-role="summary-download-percent"]'),
+        summaryDownloadBar: panel.querySelector('[data-role="summary-download-bar"]'),
+        summaryDownloadHint: panel.querySelector('[data-role="summary-download-hint"]'),
+        summaryEngineBadge: panel.querySelector('[data-role="summary-engine-badge"]'),
         apiKeyStatus: panel.querySelector('[data-role="api-key-status"]'),
         apiKeyStatusText: panel.querySelector('[data-role="api-key-status-text"]'),
         openOptionsBtn: panel.querySelector('[data-role="open-options"]'),
@@ -951,6 +1038,12 @@
 
       if (this.elements.predictionOpenOptions) {
         this.elements.predictionOpenOptions.addEventListener('click', () => {
+          this._openOptionsPage();
+        });
+      }
+
+      if (this.elements.summaryByokOpenOptions) {
+        this.elements.summaryByokOpenOptions.addEventListener('click', () => {
           this._openOptionsPage();
         });
       }
@@ -1849,6 +1942,97 @@
       this.elements.fallback.hidden = false;
     }
 
+    // Sprint 9 §3.6.4 — show / hide the Nano-unsupported guidance banner.
+    // hasApiKey switches the copy from "BYOK 設定して有効化" to
+    // "クラウド経由で要約を生成中…" so the user understands why the local
+    // engine isn't running but cloud fallback is.
+    showSummaryByokNotice({ hasApiKey } = { hasApiKey: false }) {
+      const notice = this.elements.summaryByokNotice;
+      const title = this.elements.summaryByokTitle;
+      const body = this.elements.summaryByokBody;
+      const btn = this.elements.summaryByokOpenOptions;
+      if (!notice) return;
+      if (hasApiKey) {
+        if (title) title.textContent = 'ローカル AI 機能は利用できません (クラウド経由で動作します)';
+        if (body) {
+          body.textContent =
+            '設定済みの Google AI Studio API キーで要約を生成しています。'
+            + 'ローカル AI を使うには Chrome 138 以上のデスクトップ版が必要です。';
+        }
+        if (btn) btn.hidden = true;
+      } else {
+        if (title) title.textContent = 'お使いの環境ではローカル AI 機能が利用できません';
+        if (body) {
+          body.textContent =
+            'Google AI Studio の無料 API キーを設定すると、すべての機能が利用可能になります。'
+            + ' 設定ページから API キーを登録してください。';
+        }
+        if (btn) btn.hidden = false;
+      }
+      notice.hidden = false;
+    }
+
+    hideSummaryByokNotice() {
+      if (this.elements.summaryByokNotice) {
+        this.elements.summaryByokNotice.hidden = true;
+      }
+    }
+
+    // Sprint 9 §3.6.5 — initialise the download progress UI for Nano models.
+    // hasApiKey controls the hint copy ("クラウド経由で先に動作します" vs
+    // "ダウンロード完了までお待ちください").
+    showSummaryDownloadProgress({ hasApiKey } = { hasApiKey: false }) {
+      const wrap = this.elements.summaryDownloadProgress;
+      const hint = this.elements.summaryDownloadHint;
+      if (!wrap) return;
+      if (hint) {
+        hint.textContent = hasApiKey
+          ? '完了するまでお待ちください。API キーを設定済みのためクラウド経由で先に動作します。'
+          : 'ダウンロード完了までお待ちください。設定ページで API キーを登録するとクラウド経由で先に動作します。';
+      }
+      this.setSummaryDownloadProgress(0, 1);
+      wrap.hidden = false;
+    }
+
+    setSummaryDownloadProgress(loaded, total) {
+      const bar = this.elements.summaryDownloadBar;
+      const pct = this.elements.summaryDownloadPercent;
+      if (!bar && !pct) return;
+      const safeTotal = total > 0 ? total : 1;
+      const ratio = Math.max(0, Math.min(1, (loaded || 0) / safeTotal));
+      const percent = Math.round(ratio * 100);
+      if (bar) bar.style.width = `${percent}%`;
+      if (pct) pct.textContent = `${percent}%`;
+    }
+
+    hideSummaryDownloadProgress() {
+      if (this.elements.summaryDownloadProgress) {
+        this.elements.summaryDownloadProgress.hidden = true;
+      }
+    }
+
+    // Sprint 9 — show which engine produced the summary so the user can
+    // distinguish "local AI" from "cloud BYOK" results. Pass null/'' to hide.
+    setSummaryEngine(engine) {
+      const badge = this.elements.summaryEngineBadge;
+      if (!badge) return;
+      if (!engine) {
+        badge.hidden = true;
+        badge.textContent = '';
+        delete badge.dataset.engine;
+        return;
+      }
+      badge.hidden = false;
+      badge.dataset.engine = engine;
+      if (engine === 'nano') {
+        badge.textContent = 'ローカル AI で要約しました';
+      } else if (engine === 'cloud') {
+        badge.textContent = 'クラウド (gemini-2.5-flash-lite) で要約しました';
+      } else {
+        badge.textContent = engine;
+      }
+    }
+
     showError(message) {
       this.setStage('error');
       this.elements.stageText.textContent = message;
@@ -2024,6 +2208,11 @@
       this._showToast(`${label}でクリップボードにコピーしました。`);
     }
 
+    // Public alias so content.js can show toasts (e.g. Nano download complete).
+    showToast(message, tone) {
+      return this._showToast(message, tone);
+    }
+
     _showToast(message, tone) {
       const toast = this.elements.toast;
       if (!toast) return;
@@ -2066,6 +2255,11 @@
         this.elements.fallback.hidden = true;
         this.elements.fallback.textContent = '';
       }
+      // Sprint 9: clear Nano-unsupported guidance / progress / engine badge so
+      // SPA navigation between articles starts from a neutral state.
+      this.hideSummaryByokNotice();
+      this.hideSummaryDownloadProgress();
+      this.setSummaryEngine(null);
       this.setStage('idle');
 
       // Prediction tab.
