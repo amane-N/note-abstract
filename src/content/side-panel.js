@@ -1850,7 +1850,7 @@
       const ns = globalThis.__noteAbstract || {};
       if (!ns.Storage) {
         statusEl.dataset.state = 'unknown';
-        textEl.textContent = '設定モジュールを読み込めませんでした。';
+        textEl.textContent = '設定モジュールを読み込めませんでした。ページを再読み込みしてください。';
         return;
       }
       try {
@@ -1863,21 +1863,53 @@
           textEl.textContent = 'API キーは未設定です。設定ページから登録してください。';
         }
       } catch (err) {
+        const msg = (err && err.message) ? String(err.message) : String(err);
+        console.warn('[note-abstract] refreshSettings: hasApiKey rejected', msg);
         statusEl.dataset.state = 'unknown';
-        textEl.textContent = '設定状態の取得に失敗しました。';
+        if (/Extension context invalidated/i.test(msg)) {
+          textEl.textContent = '拡張機能が更新されました。このページを再読み込み (F5) してください。';
+        } else {
+          textEl.textContent = `設定状態の取得に失敗しました (${msg})。「設定ページを開く」から直接登録できます。`;
+        }
       }
     }
 
     _openOptionsPage() {
-      try {
-        if (chrome && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
-          chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' }, () => {
-            // ignore response; service worker is responsible for opening the page
-            void chrome.runtime.lastError;
-          });
+      // The only reliable way to open the options page from a content script is
+      // via the background SW (chrome.runtime.openOptionsPage works only there).
+      // We must NOT window.open(chrome-extension://...) from a note.com content
+      // script — that triggers a web_accessible_resources policy violation which
+      // surfaces in chrome://extensions as a runtime error badge even though the
+      // navigation itself silently fails.
+      const showRecoveryHint = () => {
+        const textEl = this.elements && this.elements.apiKeyStatusText;
+        const statusEl = this.elements && this.elements.apiKeyStatus;
+        if (textEl) {
+          textEl.textContent =
+            '設定ページを開けませんでした。ページを再読み込み (F5) してから再度お試しください。';
         }
+        if (statusEl) statusEl.dataset.state = 'unknown';
+      };
+
+      try {
+        if (!chrome || !chrome.runtime || typeof chrome.runtime.sendMessage !== 'function') {
+          console.warn('[note-abstract] openOptionsPage: chrome.runtime unavailable');
+          showRecoveryHint();
+          return;
+        }
+        chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' }, (response) => {
+          const lastErr = chrome.runtime && chrome.runtime.lastError;
+          const ok = response && response.ok;
+          if (lastErr || !ok) {
+            console.warn('[note-abstract] openOptionsPage SW path failed',
+              (lastErr && lastErr.message) || (response && response.error) || 'no response');
+            showRecoveryHint();
+          }
+        });
       } catch (err) {
-        console.warn('[note-abstract] openOptionsPage failed', err && err.message ? err.message : err);
+        // sendMessage threw synchronously (e.g. Extension context invalidated).
+        console.warn('[note-abstract] openOptionsPage threw', err && err.message ? err.message : err);
+        showRecoveryHint();
       }
     }
 
