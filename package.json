@@ -4,7 +4,8 @@
   "private": true,
   "description": "Chrome extension that summarizes note.com articles in abstract format",
   "scripts": {
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:zip": "node scripts/build-zip.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1"
