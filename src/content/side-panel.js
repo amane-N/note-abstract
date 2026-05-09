@@ -12,16 +12,22 @@
     { id: 'summary', label: '要約', enabled: true },
     { id: 'prediction', label: '予測', enabled: true },
     { id: 'related', label: '関連', enabled: true },
-    { id: 'history', label: '履歴', enabled: false, locked: '有料層で開放 (Sprint 6)' },
+    // History defaults to locked; the panel re-evaluates after license check.
+    { id: 'history', label: '履歴', enabled: false, requiresPremium: true, locked: '有料層で開放されます' },
     { id: 'settings', label: '設定', enabled: true },
   ];
+
+  const LOCK_GLYPH = '\u{1F512}';
 
   const STAGES = {
     idle: '待機中',
     analyzing: '記事を解析中…',
     generating: '要約を生成中…',
     done: '完了',
+    error: 'エラー',
   };
+
+  const HISTORY_DISPLAY_LIMIT = 20;
 
   const PANEL_CSS = `
     :host {
@@ -379,6 +385,151 @@
       color: #64748b;
       margin: 0 0 10px;
     }
+    .history-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+    .history-header h3 { margin: 0; }
+    .history-count-badge {
+      display: inline-block;
+      padding: 1px 7px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+    .history-list {
+      list-style: none;
+      margin: 0 0 12px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .history-entry {
+      padding: 9px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      background: #ffffff;
+      cursor: pointer;
+      transition: border-color 120ms ease;
+    }
+    .history-entry:hover {
+      border-color: #1a73e8;
+      background: #eff6ff;
+    }
+    .history-entry-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #1f2937;
+      margin: 0 0 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-entry-meta {
+      font-size: 11px;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .history-type-badge {
+      display: inline-block;
+      padding: 0px 5px;
+      border-radius: 999px;
+      font-size: 10px;
+      background: #f1f5f9;
+      color: #475569;
+    }
+    .history-empty {
+      padding: 12px;
+      background: #f8fafc;
+      color: #64748b;
+      border-radius: 6px;
+      font-size: 12px;
+      text-align: center;
+    }
+    .history-see-all-btn {
+      appearance: none;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #1a73e8;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+      margin-top: 4px;
+    }
+    .history-see-all-btn:hover { background: #eff6ff; }
+    /* History detail modal */
+    .history-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2147483647;
+    }
+    .history-modal-overlay[hidden] { display: none; }
+    .history-modal {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 20px;
+      max-width: min(520px, calc(100vw - 32px));
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      position: relative;
+    }
+    .history-modal h3 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      color: #1a1a1a;
+      padding-right: 28px;
+    }
+    .history-modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      appearance: none;
+      border: none;
+      background: transparent;
+      font-size: 18px;
+      cursor: pointer;
+      color: #555;
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .history-modal-close:hover { background: #f1f5f9; color: #111; }
+    .history-modal-field {
+      margin-bottom: 10px;
+    }
+    .history-modal-label {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 0 0 2px;
+    }
+    .history-modal-value {
+      font-size: 12px;
+      color: #1f2937;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .history-modal-value a {
+      color: #1a73e8;
+      word-break: break-all;
+    }
   `;
 
   class SidePanel {
@@ -395,6 +546,10 @@
       this._build();
       this._bindEvents();
       this._restoreWidth();
+      this._refreshLicense().catch(() => {
+        // best-effort; ignore failures so the panel still renders
+      });
+      this._installLicenseStorageListener();
     }
 
     _build() {
@@ -416,8 +571,8 @@
         </header>
         <nav class="tabs" role="tablist">
           ${TABS.map((t) => `
-            <button type="button" role="tab" data-tab="${t.id}" aria-selected="${t.id === 'summary'}" ${t.enabled ? '' : 'disabled'} title="${t.locked || ''}">
-              ${t.label}${t.enabled ? '' : ' \u{1F512}'}
+            <button type="button" role="tab" data-tab="${t.id}" aria-selected="${t.id === 'summary'}" ${t.enabled ? '' : 'disabled'} title="${t.locked || ''}" data-requires-premium="${t.requiresPremium ? 'true' : 'false'}">
+              <span class="tab-label">${t.label}</span>${t.enabled ? '' : ` <span class="lock-glyph" aria-hidden="true">${LOCK_GLYPH}</span>`}
             </button>
           `).join('')}
         </nav>
@@ -478,7 +633,33 @@
             </div>
           </section>
           <section class="tab-panel" data-tab="history">
-            <div class="placeholder">履歴機能は Sprint 6 で実装予定です。<div class="lock-hint">有料層で開放されます。</div></div>
+            <div data-role="history-locked">
+              <div class="placeholder">
+                履歴機能は<strong>有料層で開放</strong>されます。記事ごとの要約と分析結果を端末内に保存し、後から見返せるようになります。
+                <div class="lock-hint">設定ページからライセンスコードを入力すると有効化できます。</div>
+              </div>
+              <button type="button" class="open-options-btn" data-role="history-open-options">設定ページを開く</button>
+            </div>
+            <div data-role="history-unlocked" hidden>
+              <div class="history-header">
+                <h3>履歴</h3>
+                <span class="history-count-badge" data-role="history-count">0</span>
+                <span style="font-size:11px;color:#64748b;">(最新 20 件)</span>
+              </div>
+              <ul class="history-list" data-role="history-list"></ul>
+              <div class="history-empty" data-role="history-empty" hidden>
+                履歴はまだありません。記事を要約すると自動で保存されます。
+              </div>
+              <button type="button" class="history-see-all-btn" data-role="history-see-all">すべての履歴を見る</button>
+            </div>
+            <!-- History detail modal (inside Shadow DOM) -->
+            <div class="history-modal-overlay" data-role="history-modal-overlay" hidden>
+              <div class="history-modal" data-role="history-modal" role="dialog" aria-modal="true" aria-label="履歴詳細">
+                <button type="button" class="history-modal-close" data-role="history-modal-close" aria-label="閉じる">×</button>
+                <h3 data-role="history-modal-title">詳細</h3>
+                <div data-role="history-modal-body"></div>
+              </div>
+            </div>
           </section>
           <section class="tab-panel" data-tab="settings">
             <div class="settings-section">
@@ -529,6 +710,17 @@
         relatedMeta: panel.querySelector('[data-role="related-meta"]'),
         relatedResult: panel.querySelector('[data-role="related-result"]'),
         relatedOpenOptions: panel.querySelector('[data-role="related-open-options"]'),
+        historyLocked: panel.querySelector('[data-role="history-locked"]'),
+        historyUnlocked: panel.querySelector('[data-role="history-unlocked"]'),
+        historyOpenOptions: panel.querySelector('[data-role="history-open-options"]'),
+        historyList: panel.querySelector('[data-role="history-list"]'),
+        historyEmpty: panel.querySelector('[data-role="history-empty"]'),
+        historyCount: panel.querySelector('[data-role="history-count"]'),
+        historySeeAll: panel.querySelector('[data-role="history-see-all"]'),
+        historyModalOverlay: panel.querySelector('[data-role="history-modal-overlay"]'),
+        historyModalClose: panel.querySelector('[data-role="history-modal-close"]'),
+        historyModalTitle: panel.querySelector('[data-role="history-modal-title"]'),
+        historyModalBody: panel.querySelector('[data-role="history-modal-body"]'),
       };
       this._predictionTemplatesLoaded = false;
       this._predictionRunning = false;
@@ -536,6 +728,8 @@
       this._predictionHandler = null;
       this._relatedHandler = null;
       this._currentTemplateId = 'standard';
+      this._articleContext = { url: '', title: '' };
+      this._historyEntries = [];
     }
 
     _bindEvents() {
@@ -566,6 +760,12 @@
         });
       }
 
+      if (this.elements.historyOpenOptions) {
+        this.elements.historyOpenOptions.addEventListener('click', () => {
+          this._openOptionsPage();
+        });
+      }
+
       if (this.elements.predictionRun) {
         this.elements.predictionRun.addEventListener('click', () => {
           this._invokePrediction();
@@ -584,9 +784,33 @@
         });
       }
 
+      if (this.elements.historySeeAll) {
+        this.elements.historySeeAll.addEventListener('click', () => {
+          this._openOptionsPage();
+        });
+      }
+
+      if (this.elements.historyModalClose) {
+        this.elements.historyModalClose.addEventListener('click', () => {
+          this._closeHistoryModal();
+        });
+      }
+
+      if (this.elements.historyModalOverlay) {
+        this.elements.historyModalOverlay.addEventListener('click', (e) => {
+          if (e.target === this.elements.historyModalOverlay) {
+            this._closeHistoryModal();
+          }
+        });
+      }
+
       this._docKeyHandler = (e) => {
-        if (e.key === 'Escape' && this.opened) {
-          this.close();
+        if (e.key === 'Escape') {
+          if (this.elements.historyModalOverlay && !this.elements.historyModalOverlay.hidden) {
+            this._closeHistoryModal();
+          } else if (this.opened) {
+            this.close();
+          }
         }
       };
       document.addEventListener('keydown', this._docKeyHandler, { capture: true });
@@ -661,6 +885,83 @@
         this._refreshRelatedTab().catch((err) => {
           console.warn('[note-abstract] refreshRelatedTab failed', err && err.message ? err.message : err);
         });
+      }
+      if (id === 'history') {
+        this._refreshLicense().catch((err) => {
+          console.warn('[note-abstract] refreshLicense failed', err && err.message ? err.message : err);
+        });
+        this._loadHistoryEntries().catch((err) => {
+          console.warn('[note-abstract] loadHistoryEntries failed', err && err.message ? err.message : err);
+        });
+      }
+    }
+
+    async _refreshLicense() {
+      const ns = globalThis.__noteAbstract || {};
+      let isPremium = false;
+      if (ns.License && typeof ns.License.isPremium === 'function') {
+        try {
+          isPremium = await ns.License.isPremium();
+        } catch (_) {
+          isPremium = false;
+        }
+      }
+      this._applyLicenseState(isPremium);
+    }
+
+    _applyLicenseState(isPremium) {
+      const tabBtn = Array.from(this.elements.tabs).find(
+        (b) => b.dataset.tab === 'history'
+      );
+      if (tabBtn) {
+        if (isPremium) {
+          tabBtn.disabled = false;
+          tabBtn.removeAttribute('disabled');
+          tabBtn.title = '';
+          const lock = tabBtn.querySelector('.lock-glyph');
+          if (lock) lock.remove();
+        } else {
+          tabBtn.disabled = true;
+          tabBtn.setAttribute('disabled', '');
+          tabBtn.title = '有料層で開放されます';
+          if (!tabBtn.querySelector('.lock-glyph')) {
+            const span = document.createElement('span');
+            span.className = 'lock-glyph';
+            span.setAttribute('aria-hidden', 'true');
+            span.textContent = ` ${LOCK_GLYPH}`;
+            tabBtn.appendChild(span);
+          }
+          // If the user is currently viewing the history tab when premium
+          // gets revoked, fall back to the summary tab.
+          if (this.activeTab === 'history') {
+            this._activateTab('summary');
+          }
+        }
+      }
+      if (this.elements.historyLocked) {
+        this.elements.historyLocked.hidden = !!isPremium;
+      }
+      if (this.elements.historyUnlocked) {
+        this.elements.historyUnlocked.hidden = !isPremium;
+      }
+      if (isPremium) {
+        this._loadHistoryEntries().catch(() => {});
+      } else {
+        // Clear the history DOM when premium is revoked.
+        this._renderHistoryEntries([]);
+      }
+    }
+
+    _installLicenseStorageListener() {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.onChanged) return;
+        chrome.storage.onChanged.addListener((changes, area) => {
+          if (area !== 'local') return;
+          if (!changes || !('license' in changes)) return;
+          this._refreshLicense().catch(() => {});
+        });
+      } catch (_) {
+        // ignore
       }
     }
 
@@ -781,6 +1082,202 @@
       this.elements.relatedError.dataset.active = 'false';
     }
 
+    // -----------------------------------------------------------------------
+    // Article context (url + title) set by content.js before summarization.
+    // -----------------------------------------------------------------------
+    setArticleContext({ url, title } = {}) {
+      this._articleContext = {
+        url: url || this._articleContext.url || '',
+        title: title || this._articleContext.title || '',
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // History helpers
+    // -----------------------------------------------------------------------
+    async _loadHistoryEntries() {
+      const ns = globalThis.__noteAbstract || {};
+      if (!ns.Storage) return;
+      try {
+        const entries = await ns.Storage.getHistory({ limit: HISTORY_DISPLAY_LIMIT });
+        this._historyEntries = entries;
+        this._renderHistoryEntries(entries);
+      } catch (err) {
+        console.warn('[note-abstract] loadHistoryEntries error', err && err.message ? err.message : err);
+      }
+    }
+
+    _renderHistoryEntries(entries) {
+      const list = this.elements.historyList;
+      const empty = this.elements.historyEmpty;
+      const count = this.elements.historyCount;
+      if (!list) return;
+
+      list.innerHTML = '';
+
+      if (!Array.isArray(entries) || entries.length === 0) {
+        if (empty) empty.hidden = false;
+        if (count) count.textContent = '0';
+        return;
+      }
+
+      if (empty) empty.hidden = true;
+      if (count) count.textContent = String(entries.length);
+
+      entries.forEach((entry) => {
+        const li = document.createElement('li');
+        li.className = 'history-entry';
+        li.setAttribute('role', 'button');
+        li.setAttribute('tabindex', '0');
+
+        const title = document.createElement('div');
+        title.className = 'history-entry-title';
+        title.textContent = entry.title || entry.url || '(タイトル不明)';
+
+        const meta = document.createElement('div');
+        meta.className = 'history-entry-meta';
+
+        if (entry.createdAt) {
+          const dateSpan = document.createElement('span');
+          try {
+            dateSpan.textContent = new Date(entry.createdAt).toLocaleString('ja-JP');
+          } catch (_) {
+            dateSpan.textContent = entry.createdAt;
+          }
+          meta.appendChild(dateSpan);
+        }
+
+        if (entry.summary) {
+          const b = document.createElement('span');
+          b.className = 'history-type-badge';
+          b.textContent = '要約';
+          meta.appendChild(b);
+        }
+        if (entry.prediction) {
+          const b = document.createElement('span');
+          b.className = 'history-type-badge';
+          b.textContent = '予測';
+          meta.appendChild(b);
+        }
+        if (Array.isArray(entry.keywords) && entry.keywords.length > 0) {
+          const b = document.createElement('span');
+          b.className = 'history-type-badge';
+          b.textContent = '関連';
+          meta.appendChild(b);
+        }
+
+        li.appendChild(title);
+        li.appendChild(meta);
+
+        const openModal = () => this._openHistoryModal(entry);
+        li.addEventListener('click', openModal);
+        li.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openModal();
+          }
+        });
+
+        list.appendChild(li);
+      });
+    }
+
+    _openHistoryModal(entry) {
+      const overlay = this.elements.historyModalOverlay;
+      const titleEl = this.elements.historyModalTitle;
+      const body = this.elements.historyModalBody;
+      if (!overlay || !body) return;
+
+      if (titleEl) titleEl.textContent = entry.title || '(タイトル不明)';
+
+      body.innerHTML = '';
+
+      const addField = (label, value) => {
+        if (!value && value !== 0) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'history-modal-field';
+        const labelEl = document.createElement('div');
+        labelEl.className = 'history-modal-label';
+        labelEl.textContent = label;
+        const valueEl = document.createElement('div');
+        valueEl.className = 'history-modal-value';
+        valueEl.textContent = String(value);
+        wrap.appendChild(labelEl);
+        wrap.appendChild(valueEl);
+        body.appendChild(wrap);
+      };
+
+      const addLinkField = (label, url) => {
+        if (!url) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'history-modal-field';
+        const labelEl = document.createElement('div');
+        labelEl.className = 'history-modal-label';
+        labelEl.textContent = label;
+        const valueEl = document.createElement('div');
+        valueEl.className = 'history-modal-value';
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = url;
+        valueEl.appendChild(a);
+        wrap.appendChild(labelEl);
+        wrap.appendChild(valueEl);
+        body.appendChild(wrap);
+      };
+
+      addLinkField('URL', entry.url);
+      try {
+        addField('保存日時', entry.createdAt ? new Date(entry.createdAt).toLocaleString('ja-JP') : '');
+      } catch (_) {
+        addField('保存日時', entry.createdAt || '');
+      }
+      addField('要約 (アブストラクト)', entry.summary);
+      if (Array.isArray(entry.keyPoints) && entry.keyPoints.length > 0) {
+        addField('キーポイント', entry.keyPoints.join('\n'));
+      }
+      addField('予測', entry.prediction);
+      if (Array.isArray(entry.keywords) && entry.keywords.length > 0) {
+        addField('関連キーワード', entry.keywords.join(', '));
+      }
+      if (entry.templateId) {
+        addField('テンプレート ID', entry.templateId);
+      }
+
+      overlay.hidden = false;
+    }
+
+    _closeHistoryModal() {
+      if (this.elements.historyModalOverlay) {
+        this.elements.historyModalOverlay.hidden = true;
+      }
+    }
+
+    setHistoryEntries(list) {
+      this._historyEntries = Array.isArray(list) ? list : [];
+      this._renderHistoryEntries(this._historyEntries);
+    }
+
+    // -----------------------------------------------------------------------
+    // Auto-save helpers (called from content.js after successful operations)
+    // -----------------------------------------------------------------------
+    async _saveHistoryEntry(entry) {
+      const ns = globalThis.__noteAbstract || {};
+      if (!ns.Storage || !ns.License) return;
+      try {
+        const premium = await ns.License.isPremium();
+        if (!premium) return;
+        await ns.Storage.addHistory(entry);
+        // Refresh the panel list if history tab is visible.
+        if (this.activeTab === 'history') {
+          await this._loadHistoryEntries();
+        }
+      } catch (err) {
+        console.warn('[note-abstract] saveHistoryEntry failed', err && err.message ? err.message : err);
+      }
+    }
+
     setPrediction(result) {
       const container = this.elements.predictionResult;
       if (!container) return;
@@ -870,6 +1367,14 @@
             ...result,
             outputSections: result.outputSections || Object.keys(result.sections),
           });
+          // Auto-save to history (premium only, fail-soft).
+          const predictionText = Object.values(result.sections || {}).join('\n');
+          this._saveHistoryEntry({
+            url: this._articleContext.url || location.href,
+            title: this._articleContext.title || document.title,
+            prediction: predictionText || (result.rawText || ''),
+            templateId: result.templateId || templateId,
+          }).catch(() => {});
         } else {
           this._showPredictionError('結果を取得できませんでした。少し待ってから再度お試しください。');
         }
@@ -899,6 +1404,13 @@
         const result = await this._relatedHandler();
         if (result && Array.isArray(result.items) && result.items.length > 0) {
           this.setRelated(result);
+          // Auto-save keywords to history (premium only, fail-soft).
+          const keywords = result.items.map((item) => item.keyword || '').filter(Boolean);
+          this._saveHistoryEntry({
+            url: this._articleContext.url || location.href,
+            title: this._articleContext.title || document.title,
+            keywords,
+          }).catch(() => {});
         } else {
           this._showRelatedError('関連キーワードを取得できませんでした。少し待ってから再度お試しください。');
         }

@@ -64,10 +64,15 @@
   };
 
   const getArticle = () => {
-    if (cachedArticle) return cachedArticle;
+    // 成功結果のみキャッシュする。document_idle 直後は note.com の SPA が
+    // 記事 DOM をまだ描画し終えていない場合があり、ここで失敗結果を永続
+    // キャッシュしてしまうと、後でパネルを開いても再試行されず常に
+    // 「記事を取得できませんでした」と表示されてしまう。
+    if (cachedArticle && cachedArticle.ok) return cachedArticle;
     if (!ns.NoteParser) return { ok: false, reason: 'parser-missing' };
-    cachedArticle = ns.NoteParser.extractArticle();
-    return cachedArticle;
+    const result = ns.NoteParser.extractArticle();
+    if (result && result.ok) cachedArticle = result;
+    return result;
   };
 
   const wirePanelHandlers = (panel) => {
@@ -157,8 +162,34 @@
       .filter(Boolean);
   };
 
+  const saveHistoryAfterSummary = async (panel, article, tldr, keyPoints) => {
+    try {
+      if (!ns.License || !ns.Storage) return;
+      const premium = await ns.License.isPremium();
+      if (!premium) return;
+      await ns.Storage.addHistory({
+        url: location.href,
+        title: article.title || document.title,
+        summary: tldr || '',
+        keyPoints: keyPoints ? keyPoints.slice(0, 5) : [],
+      });
+      if (typeof panel.setHistoryEntries === 'function' && panel.activeTab === 'history') {
+        const entries = await ns.Storage.getHistory({ limit: 20 });
+        panel.setHistoryEntries(entries);
+      }
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} saveHistoryAfterSummary failed`, err && err.message ? err.message : err);
+    }
+  };
+
   const runSummaryWorkflow = async (panel) => {
-    const article = getArticle();
+    // 記事 DOM が遅延描画されるケースを救うため短くリトライする (~1.5s)。
+    // 既に成功キャッシュがあればループは即抜ける。
+    let article = getArticle();
+    for (let attempt = 0; attempt < 6 && (!article || !article.ok); attempt += 1) {
+      await new Promise((r) => setTimeout(r, 250));
+      article = getArticle();
+    }
     if (!article || !article.ok) {
       panel.setStage('error');
       panel.showSummaryFallback(
@@ -168,6 +199,10 @@
     }
 
     panel.setStage('analyzing');
+    // Provide article context to the panel so prediction/related auto-save can use it.
+    if (typeof panel.setArticleContext === 'function') {
+      panel.setArticleContext({ url: location.href, title: article.title || document.title });
+    }
     const reading = ns.NoteParser.calculateReadingTime(article.body);
     panel.setReadingTime(`${reading.label}・本文 ${ns.NoteParser.countCharacters(article.body)} 字`);
 
@@ -189,13 +224,34 @@
     panel.setStage('generating');
 
     try {
+      // sharedContext + outputLanguage で日本語出力を強制する。length は 'medium' に
+      // 引き上げて、論文アブストラクトに近い読み応えのある分量にする。Built-in
+      // Summarizer が指定オプションを拒否した場合は catch でフォールバック表示に
+      // 切り替わるため、回帰リスクは限定的。
       const [tldr, keyPointsRaw] = await Promise.all([
-        ns.NanoSummarizer.summarize(article.body, { type: 'tldr', length: 'short' }),
-        ns.NanoSummarizer.summarize(article.body, { type: 'key-points', length: 'medium' }),
+        ns.NanoSummarizer.summarize(article.body, {
+          type: 'tldr',
+          length: 'medium',
+          outputLanguage: 'ja',
+          expectedInputLanguages: ['ja'],
+          sharedContext:
+            'これは note.com に投稿された日本語の記事本文です。論文のアブストラクトに近い構成 (背景・主題・主張・根拠・結論) で、要点を漏らさずに読み応えのある日本語の要約を作成してください。出力は必ず日本語のみで、英訳や翻訳は出力しないでください。',
+        }),
+        ns.NanoSummarizer.summarize(article.body, {
+          type: 'key-points',
+          length: 'medium',
+          outputLanguage: 'ja',
+          expectedInputLanguages: ['ja'],
+          sharedContext:
+            '日本語の記事から、重要な論点・主張・根拠を 5 個前後の箇条書きで抽出してください。各項目は短く具体的な日本語で書き、英訳は出力しないでください。',
+        }),
       ]);
+      const keyPoints = parseKeyPointsOutput(keyPointsRaw);
       panel.setSummary(tldr || '');
-      panel.setKeyPoints(parseKeyPointsOutput(keyPointsRaw).slice(0, 5));
+      panel.setKeyPoints(keyPoints.slice(0, 5));
       panel.setStage('done');
+      // Auto-save to history (premium only, fail-soft).
+      saveHistoryAfterSummary(panel, article, tldr, keyPoints).catch(() => {});
     } catch (err) {
       console.warn(`${LOG_PREFIX} summarization error`, err && err.message ? err.message : err);
       panel.setStage('done');
