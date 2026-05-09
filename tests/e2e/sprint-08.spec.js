@@ -238,9 +238,12 @@ test.describe('Sprint 8 — side-panel.js export UI (source check)', () => {
     expect(src).toMatch(/data-format="note-draft"/);
   });
 
-  test('side-panel.js premium-gates export buttons via [data-premium]', () => {
+  test('side-panel.js uses [data-premium] attribute on panel element', () => {
+    // Sprint 11: CSS ルール ".panel:not([data-premium='true']) .export-btn" は削除済み。
+    // data-premium 属性自体は互換性のため残っている。
     expect(src).toMatch(/data-premium/);
-    expect(src).toMatch(/panel:not\(\[data-premium='true'\]\)\s+\.export-btn/);
+    // Sprint 11 注記コメントが存在する。
+    expect(src).toMatch(/Sprint 11/);
   });
 
   test('side-panel.js wires OPEN_NOTE_DRAFT for the note-draft format', () => {
@@ -320,7 +323,8 @@ test.describe('Sprint 8 — browser: premium gating + note-draft tab open', () =
     }, { timeout: 5000 });
   };
 
-  test('free tier: panel hides all export buttons', async () => {
+  test('Sprint 11: export buttons are always visible (no license required)', async () => {
+    // Sprint 11 全機能無料化 — license なしでもエクスポートボタンは常に表示される。
     await clearLicense();
     const page = await context.newPage();
     await page.goto(NOTE_ARTICLE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -331,9 +335,16 @@ test.describe('Sprint 8 — browser: premium gating + note-draft tab open', () =
     );
     await togglePanel(page);
 
-    // Read the panel's data-premium and the computed display of the export
-    // buttons. With no license, data-premium should be 'false' and at least
-    // one export button must be in DOM but visually hidden via CSS.
+    // isPremium は常に true のため、panel[data-premium] は 'true' になる。
+    await page.waitForFunction(
+      () => {
+        const host = document.getElementById('note-abstract-host');
+        const panel = host && host.shadowRoot && host.shadowRoot.querySelector('.panel');
+        return panel && panel.dataset.premium === 'true';
+      },
+      { timeout: 8000 }
+    );
+
     const result = await page.evaluate(() => {
       const host = document.getElementById('note-abstract-host');
       if (!host || !host.shadowRoot) return { ok: false, reason: 'no host' };
@@ -341,8 +352,7 @@ test.describe('Sprint 8 — browser: premium gating + note-draft tab open', () =
       const summaryBtn = host.shadowRoot.querySelector('[data-role="summary-export"]');
       const predictionBtn = host.shadowRoot.querySelector('[data-role="prediction-export"]');
       const relatedBtn = host.shadowRoot.querySelector('[data-role="related-export"]');
-      const historyBtn = host.shadowRoot.querySelector('[data-role="history-export"]');
-      const buttons = [summaryBtn, predictionBtn, relatedBtn, historyBtn].filter(Boolean);
+      const buttons = [summaryBtn, predictionBtn, relatedBtn].filter(Boolean);
       const visible = buttons.map((b) => {
         const style = window.getComputedStyle(b);
         return style.display !== 'none' && style.visibility !== 'hidden';
@@ -355,9 +365,11 @@ test.describe('Sprint 8 — browser: premium gating + note-draft tab open', () =
       };
     });
     expect(result.ok).toBe(true);
-    expect(result.premium).not.toBe('true');
+    // isPremium 常時 true のため premium='true'。
+    expect(result.premium).toBe('true');
     expect(result.present).toBeGreaterThanOrEqual(3);
-    expect(result.visibleCount).toBe(0);
+    // エクスポートボタンはすべて表示されている。
+    expect(result.visibleCount).toBeGreaterThanOrEqual(3);
 
     await page.close();
   });

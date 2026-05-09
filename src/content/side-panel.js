@@ -12,8 +12,8 @@
     { id: 'summary', label: '要約', enabled: true },
     { id: 'prediction', label: '予測', enabled: true },
     { id: 'related', label: '関連', enabled: true },
-    // History defaults to locked; the panel re-evaluates after license check.
-    { id: 'history', label: '履歴', enabled: false, requiresPremium: true, locked: '有料層で開放されます' },
+    // Sprint 11: 全機能無料化により履歴タブは常に有効。
+    { id: 'history', label: '履歴', enabled: true },
     { id: 'settings', label: '設定', enabled: true },
   ];
 
@@ -612,7 +612,7 @@
       border-color: #1a73e8;
     }
     .export-btn[data-locked='true'] { display: none; }
-    .panel:not([data-premium='true']) .export-btn { display: none; }
+    /* Sprint 11: 全機能無料化 — エクスポートボタンは常に表示。下の CSS は削除済み。 */
     .export-menu-overlay {
       position: fixed;
       inset: 0;
@@ -725,6 +725,8 @@
   /**
    * Build an <option> element for a given template entry.
    * Applies lock style for premium templates when the user is on the free tier.
+   * Sprint 11 注記: 全機能無料化により isLocked 分岐は発動しない (isPremium 常時 true)。
+   * コードは将来の再有料化に備えて残す。
    */
   const _makeTemplateOption = (t, isPremium, favSet) => {
     const opt = document.createElement('option');
@@ -734,9 +736,10 @@
     let label = t.name || t.id;
     if (isFav) label = '⭐ ' + label;
     if (isLocked) {
+      // Sprint 11: isPremium 常時 true のためこの分岐は発動しない。
       label = '🔒 ' + label;
       opt.disabled = true;
-      opt.title = '有料層で開放されます';
+      opt.title = '現在は利用できません';
     }
     opt.textContent = label;
     return opt;
@@ -875,14 +878,14 @@
             </div>
           </section>
           <section class="tab-panel" data-tab="history">
-            <div data-role="history-locked">
+            <!-- Sprint 11: history-locked は全機能無料化後は表示されない (isPremium 常時 true) -->
+            <div data-role="history-locked" hidden>
               <div class="placeholder">
-                履歴機能は<strong>有料層で開放</strong>されます。記事ごとの要約と分析結果を端末内に保存し、後から見返せるようになります。
-                <div class="lock-hint">設定ページからライセンスコードを入力すると有効化できます。</div>
+                履歴機能をご利用いただけます。記事ごとの要約と分析結果を端末内に保存し、後から見返せるようになります。
               </div>
               <button type="button" class="open-options-btn" data-role="history-open-options">設定ページを開く</button>
             </div>
-            <div data-role="history-unlocked" hidden>
+            <div data-role="history-unlocked">
               <div class="history-header">
                 <h3>履歴</h3>
                 <span class="history-count-badge" data-role="history-count">0</span>
@@ -1257,10 +1260,9 @@
     }
 
     _applyLicenseState(isPremium) {
-      // Sprint 8: stash premium flag and toggle a panel-level data attribute so
-      // CSS can hide/show every export button in one place. This guarantees the
-      // free / BYOK tier never sees an export button — meeting the §6 Sprint 8
-      // acceptance check ("無料層・BYOK 層ではエクスポートボタンが表示されない").
+      // Sprint 11: 全機能無料化 — isPremium は常に true のためこの関数は常に
+      // premium 経路を通る。将来の再有料化に備えて関数自体は残す。
+      // Sprint 8 の panel[data-premium] 属性は引き続きセットする (CSS 互換のため)。
       this._isPremium = !!isPremium;
       if (this.panel) {
         this.panel.dataset.premium = isPremium ? 'true' : 'false';
@@ -1276,9 +1278,10 @@
           const lock = tabBtn.querySelector('.lock-glyph');
           if (lock) lock.remove();
         } else {
+          // isPremium が false になるケース (Sprint 11 では発生しない)
           tabBtn.disabled = true;
           tabBtn.setAttribute('disabled', '');
-          tabBtn.title = '有料層で開放されます';
+          tabBtn.title = '現在は利用できません';
           if (!tabBtn.querySelector('.lock-glyph')) {
             const span = document.createElement('span');
             span.className = 'lock-glyph';
@@ -1286,8 +1289,6 @@
             span.textContent = ` ${LOCK_GLYPH}`;
             tabBtn.appendChild(span);
           }
-          // If the user is currently viewing the history tab when premium
-          // gets revoked, fall back to the summary tab.
           if (this.activeTab === 'history') {
             this._activateTab('summary');
           }
@@ -1302,7 +1303,7 @@
       if (isPremium) {
         this._loadHistoryEntries().catch(() => {});
       } else {
-        // Clear the history DOM when premium is revoked.
+        // isPremium が false のとき (Sprint 11 では発生しない) は DOM をクリア。
         this._renderHistoryEntries([]);
       }
     }
@@ -1679,10 +1680,9 @@
     // -----------------------------------------------------------------------
     async _saveHistoryEntry(entry) {
       const ns = globalThis.__noteAbstract || {};
-      if (!ns.Storage || !ns.License) return;
+      if (!ns.Storage) return;
       try {
-        const premium = await ns.License.isPremium();
-        if (!premium) return;
+        // Sprint 11: 全機能無料化 — isPremium は常に true のためガードを削除。
         await ns.Storage.addHistory(entry);
         // Refresh the panel list if history tab is visible.
         if (this.activeTab === 'history') {
@@ -2125,12 +2125,7 @@
     }
 
     _openExportMenu(sourceKey) {
-      // Premium gate: even if a button somehow becomes visible, refuse to
-      // proceed when the user is not premium.
-      if (!this._isPremium) {
-        this._showToast('エクスポートは有料層で利用できます。', 'error');
-        return;
-      }
+      // Sprint 11: 全機能無料化 — isPremium は常に true のためガードを削除。
       const entry = this._buildEntryFromSource(sourceKey);
       if (!entry) {
         this._showToast('エクスポートできる内容がまだありません。', 'error');

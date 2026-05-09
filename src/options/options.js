@@ -164,20 +164,23 @@
       const info = await ns.License.getLicenseInfo();
       const isPremium = info.status === ns.License.STATUS_PREMIUM;
       if (elements.licenseBadge) {
-        elements.licenseBadge.dataset.state = isPremium ? 'premium' : 'free';
-        elements.licenseBadge.textContent = isPremium ? '有料層' : '無料層';
+        // Sprint 11: isPremium は常に true のため常に premium 表示。
+        elements.licenseBadge.dataset.state = 'premium';
+        elements.licenseBadge.textContent = '全機能利用可能';
       }
       if (elements.licenseStatus) {
         if (isPremium) {
-          const ts = info.activatedAt
-            ? new Date(info.activatedAt).toLocaleString()
-            : '日時不明';
-          elements.licenseStatus.dataset.state = 'set';
-          elements.licenseStatus.textContent = `有料層が有効です (有効化日時: ${ts})。履歴機能などの追加機能が利用できます。`;
+          if (info.activatedAt) {
+            const ts = new Date(info.activatedAt).toLocaleString();
+            elements.licenseStatus.dataset.state = 'set';
+            elements.licenseStatus.textContent = `全機能が利用可能です。ライセンスコード有効化日時: ${ts}。`;
+          } else {
+            elements.licenseStatus.dataset.state = 'set';
+            elements.licenseStatus.textContent = '全機能が利用可能です。';
+          }
         } else {
-          elements.licenseStatus.dataset.state = 'empty';
-          elements.licenseStatus.textContent =
-            '現在は無料層です。ライセンスコードを入力して有効化すると、履歴などの追加機能が解放されます。';
+          elements.licenseStatus.dataset.state = 'set';
+          elements.licenseStatus.textContent = '全機能が利用可能です。';
         }
       }
       if (elements.licenseDeactivateBtn) {
@@ -211,7 +214,7 @@
         return;
       }
       elements.licenseInput.value = '';
-      setLicenseFeedback('success', '有料層を有効化しました。履歴などの追加機能をご利用いただけます。');
+      setLicenseFeedback('success', 'ライセンスコードを保存しました。');
       await refreshLicenseStatus();
     } catch (err) {
       setLicenseFeedback(
@@ -234,8 +237,9 @@
       if (elements.historyLockedArea) elements.historyLockedArea.hidden = !!isPremium;
       if (elements.historyUnlockedArea) elements.historyUnlockedArea.hidden = !isPremium;
       if (elements.historyBadge) {
-        elements.historyBadge.dataset.state = isPremium ? 'premium' : 'free';
-        elements.historyBadge.textContent = isPremium ? '有料層' : '有料層で開放';
+        // Sprint 11: isPremium は常に true のため常に利用可能表示。
+        elements.historyBadge.dataset.state = 'premium';
+        elements.historyBadge.textContent = '利用可能';
       }
       if (isPremium) {
         await loadHistory();
@@ -598,8 +602,9 @@
 
     const tierBadge = document.createElement('span');
     tierBadge.className = 'tier-badge';
-    tierBadge.dataset.tier = t.tier || 'free';
-    tierBadge.textContent = t.tier === 'premium' ? 'PREMIUM' : 'FREE';
+    // Sprint 11: 全機能無料化 — tier badge は常に FREE で統一表示。
+    tierBadge.dataset.tier = 'free';
+    tierBadge.textContent = 'FREE';
 
     const favBtn = document.createElement('button');
     favBtn.type = 'button';

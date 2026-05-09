@@ -73,14 +73,16 @@ test.describe('Sprint 7 — prompts.json structure (static)', () => {
     expect(data.templates.length).toBeGreaterThanOrEqual(30);
   });
 
-  test('free tier has exactly 3 templates', () => {
+  test('Sprint 11: all templates have tier=free (全機能無料化)', () => {
+    // Sprint 11 全機能無料化: すべてのテンプレートが tier=free。
     const free = data.templates.filter((t) => t.tier === 'free');
-    expect(free.length).toBe(3);
+    expect(free.length).toBe(data.templates.length);
   });
 
-  test('premium tier has 27 or more templates', () => {
+  test('Sprint 11: no premium templates remain (全機能無料化)', () => {
+    // Sprint 11 全機能無料化: premium テンプレートは存在しない。
     const premium = data.templates.filter((t) => t.tier === 'premium');
-    expect(premium.length).toBeGreaterThanOrEqual(27);
+    expect(premium.length).toBe(0);
   });
 
   test('category diversity: 5 or more distinct categories', () => {
@@ -283,7 +285,8 @@ test.describe('Sprint 7 — browser: options page template management', () => {
     await page.close();
   });
 
-  test('options page shows tier badges (FREE and PREMIUM)', async () => {
+  test('Sprint 11: options page shows only FREE tier badges (全機能無料化)', async () => {
+    // Sprint 11 全機能無料化 — すべてのテンプレートバッジが FREE になっている。
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extId}/src/options/options.html`, {
       waitUntil: 'domcontentloaded',
@@ -296,8 +299,9 @@ test.describe('Sprint 7 — browser: options page template management', () => {
 
     const freeBadges = await page.$$eval('[data-tier="free"]', (els) => els.length);
     const premiumBadges = await page.$$eval('[data-tier="premium"]', (els) => els.length);
-    expect(freeBadges).toBeGreaterThanOrEqual(3);
-    expect(premiumBadges).toBeGreaterThanOrEqual(27);
+    // 全テンプレートが FREE バッジで表示される。
+    expect(freeBadges).toBeGreaterThanOrEqual(30);
+    expect(premiumBadges).toBe(0);
     await page.close();
   });
 
@@ -393,14 +397,15 @@ test.describe('Sprint 7 — browser: side-panel template dropdown tier locking',
     expect(src).toMatch(/createElement\(['"]optgroup['"]\)/);
   });
 
-  test('free-tier: premium template options are disabled in the select (via source logic)', () => {
+  test('Sprint 11: _makeTemplateOption lock branch exists but isPremium always true so never triggered', () => {
+    // Sprint 11 全機能無料化 — コードは将来の再有料化に備えて残すが発動しない。
     const src = fs.readFileSync(
       path.join(EXTENSION_PATH, 'src', 'content', 'side-panel.js'),
       'utf8'
     );
-    // The _makeTemplateOption function should set opt.disabled = true for locked templates
+    // isLocked 分岐コードは残存している。
     expect(src).toMatch(/opt\.disabled\s*=\s*true/);
-    // And the title should mention '有料層'
-    expect(src).toMatch(/有料層で開放されます/);
+    // Sprint 11 注記コメントが挿入されている。
+    expect(src).toMatch(/Sprint 11/);
   });
 });

@@ -224,9 +224,10 @@ test.describe('Sprint 6: 履歴保存・横断検索', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 2: Free tier — history must not be saved
+  // Test 2: Sprint 11 全機能無料化 — isPremium は常に true のため
+  //         Storage.addHistory は常に実行される
   // -------------------------------------------------------------------------
-  test('free tier: Storage.addHistory via direct call does not bypass license check', async () => {
+  test('Sprint 11: isPremium is always true — Storage.addHistory is always allowed', async () => {
     const { context, userDataDir } = await launchExtensionContext();
     try {
       const worker = await getServiceWorker(context);
@@ -243,16 +244,18 @@ test.describe('Sprint 6: 履歴保存・横断検索', () => {
         return ns && ns.Storage && ns.License && typeof ns.Storage.getHistory === 'function';
       }, { timeout: 5000 });
 
-      // Confirm free tier.
+      // getLicenseStatus は常に premium を返す。
       const status = await page.evaluate(() => globalThis.__noteAbstract.License.getLicenseStatus());
-      expect(status).toBe('free');
+      expect(status).toBe('premium');
 
-      // isPremium should be false.
+      // isPremium は常に true。
       const isPremium = await page.evaluate(() => globalThis.__noteAbstract.License.isPremium());
-      expect(isPremium).toBe(false);
+      expect(isPremium).toBe(true);
 
-      // Simulate the guard logic used in content.js / side-panel.js:
-      // "only add if isPremium() === true".
+      // Clear any prior state.
+      await page.evaluate(() => globalThis.__noteAbstract.Storage.clearHistory());
+
+      // addHistory はガードなしで実行される。
       await page.evaluate(async () => {
         const ns = globalThis.__noteAbstract;
         const premium = await ns.License.isPremium();
@@ -262,10 +265,9 @@ test.describe('Sprint 6: 履歴保存・横断検索', () => {
       });
 
       const all = await page.evaluate(() => globalThis.__noteAbstract.Storage.getHistory());
-      // Because the guard prevented the addHistory call, the list must be empty
-      // (or not contain the free-test entry).
+      // isPremium = true なので addHistory が実行されエントリが存在する。
       const hasFreeEntry = all.some((e) => e.url === 'https://note.com/free-test');
-      expect(hasFreeEntry).toBe(false);
+      expect(hasFreeEntry).toBe(true);
     } finally {
       await context.close();
       fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -542,9 +544,10 @@ test.describe('Sprint 6: 履歴保存・横断検索', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 7: License revocation — history tab re-locks, data preserved
+  // Test 7: Sprint 11 全機能無料化 — license revocation 後も history tab は
+  //         unlocked のまま。データは保持される。
   // -------------------------------------------------------------------------
-  test('license revocation: history tab locks and Storage.getHistory still returns data', async () => {
+  test('license revocation: history tab stays unlocked and Storage.getHistory still returns data', async () => {
     const { context, userDataDir } = await launchExtensionContext();
     try {
       const worker = await getServiceWorker(context);
@@ -578,15 +581,18 @@ test.describe('Sprint 6: 履歴保存・横断検索', () => {
         return btn && !btn.disabled;
       }, { timeout: 5000 });
 
-      // Revoke license.
+      // Revoke license (storage record 削除)。
       await clearLicenseViaWorker(worker);
+      await page.waitForTimeout(1000);
 
-      // History tab should re-lock.
-      await page.waitForFunction(() => {
+      // Sprint 11: isPremium は常に true — 履歴タブは再ロックされない。
+      const tabState = await page.evaluate(() => {
         const host = document.getElementById('note-abstract-host');
         const btn = host.shadowRoot.querySelector('nav.tabs button[data-tab="history"]');
-        return btn && btn.disabled && !!btn.querySelector('.lock-glyph');
-      }, { timeout: 5000 });
+        return { disabled: btn ? btn.disabled : null, hasLock: btn ? !!btn.querySelector('.lock-glyph') : false };
+      });
+      expect(tabState.disabled).toBe(false);
+      expect(tabState.hasLock).toBe(false);
 
       // Data should still be in storage (not deleted).
       const optPage2 = await context.newPage();

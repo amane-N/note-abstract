@@ -468,11 +468,11 @@
   <section class="card" id="license-card">
     <h2>
       ライセンス
-      <span id="license-badge" class="badge" data-state="free">無料層</span>
+      <span id="license-badge" class="badge" data-state="premium">全機能利用可能</span>
     </h2>
     <p class="lead">
-      有料層を購入すると、履歴 (記事ごとの要約保存) などの追加機能が解放されます。
-      ライセンスはお使いの端末内のみで管理され、外部サーバーへの照会は行いません。
+      ライセンスはお使いの端末内のみで管理され、現在は全機能が無料でご利用いただけます。
+      外部サーバーへの照会は行いません。
     </p>
 
     <div id="license-status" class="status-line" data-state="empty">確認中…</div>
@@ -505,22 +505,22 @@
         href="#"
         target="_blank"
         rel="noopener noreferrer"
-      >有料層を購入する (Sprint 11 で実販売 URL に差し替え予定)</a>
+      >ライセンスコードのテスト入力 (開発者向け)</a>
     </form>
   </section>
 
   <section class="card" id="history-card">
-    <h2>履歴 <span id="history-badge" class="badge" data-state="free">有料層で開放</span></h2>
+    <h2>履歴 <span id="history-badge" class="badge" data-state="premium">利用可能</span></h2>
 
-    <!-- Locked state -->
-    <div id="history-locked-area">
+    <!-- Locked state (Sprint 11: isPremium 常時 true のため通常は表示されない) -->
+    <div id="history-locked-area" hidden>
       <div class="history-locked-notice">
-        履歴機能は有料層で開放されます。記事ごとの要約・予測・関連キーワードを端末内に保存し、後から検索・閲覧できます。
+        履歴機能をご利用いただけます。記事ごとの要約・予測・関連キーワードを端末内に保存し、後から検索・閲覧できます。
       </div>
     </div>
 
-    <!-- Unlocked state -->
-    <div id="history-unlocked-area" hidden>
+    <!-- Unlocked state (Sprint 11: isPremium 常時 true のため初期表示) -->
+    <div id="history-unlocked-area">
       <div class="search-row">
         <input type="text" id="history-search-input" placeholder="タイトル・本文・キーワードで検索…" autocomplete="off" />
         <button type="button" id="history-search-clear-btn">クリア</button>

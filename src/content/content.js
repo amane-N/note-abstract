@@ -165,9 +165,8 @@
 
   const saveHistoryAfterSummary = async (panel, article, tldr, keyPoints) => {
     try {
-      if (!ns.License || !ns.Storage) return;
-      const premium = await ns.License.isPremium();
-      if (!premium) return;
+      if (!ns.Storage) return;
+      // Sprint 11: 全機能無料化 — isPremium は常に true のためガードを削除。
       await ns.Storage.addHistory({
         url: location.href,
         title: article.title || document.title,
