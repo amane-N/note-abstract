@@ -868,6 +868,74 @@
       });
     }
 
+    // ---------------------------------------------------------------------------
+    // Sprint 10: サポートセクションの初期化
+    // ---------------------------------------------------------------------------
+    const initSupportSection = () => {
+      // バージョン情報
+      const versionLabel = document.getElementById('version-label');
+      if (versionLabel) {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+            const manifest = chrome.runtime.getManifest();
+            versionLabel.textContent = `バージョン: ${manifest.version}`;
+          } else {
+            versionLabel.textContent = 'バージョン: (不明)';
+          }
+        } catch (_) {
+          versionLabel.textContent = 'バージョン: (不明)';
+        }
+      }
+
+      // プライバシーポリシーリンク
+      const privacyLink = document.getElementById('privacy-policy-link');
+      if (privacyLink) {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+            privacyLink.href = chrome.runtime.getURL('docs/privacy-policy.md');
+          } else {
+            privacyLink.href = '../../../docs/privacy-policy.md';
+          }
+        } catch (_) {
+          privacyLink.href = '#';
+        }
+      }
+
+      // 利用規約リンク
+      const termsLink = document.getElementById('terms-of-use-link');
+      if (termsLink) {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+            termsLink.href = chrome.runtime.getURL('docs/terms-of-use.md');
+          } else {
+            termsLink.href = '../../../docs/terms-of-use.md';
+          }
+        } catch (_) {
+          termsLink.href = '#';
+        }
+      }
+
+      // 問題報告ボタン: バージョン情報をメール本文に追加
+      const reportBtn = document.getElementById('report-issue-btn');
+      if (reportBtn) {
+        try {
+          let version = '';
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+            version = chrome.runtime.getManifest().version || '';
+          }
+          const subject = encodeURIComponent('note アブストラクト 不具合報告');
+          const body = encodeURIComponent(
+            `バージョン: ${version}\nChrome バージョン: \n\n【不具合の内容】\n\n【再現手順】\n\n`
+          );
+          reportBtn.href = `mailto:mayele48694062@gmail.com?subject=${subject}&body=${body}`;
+        } catch (_) {
+          // href はデフォルト値のまま
+        }
+      }
+    };
+
+    initSupportSection();
+
     refreshKeyStatus();
     refreshLicenseStatus();
     refreshHistorySection();

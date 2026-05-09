@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>有料記事テスト (テキストマーカー)</title></head>
+<body>
+  <article>
+    <header>
+      <h1 class="o-noteContentHeader__title">有料記事のタイトル (テキストマーカー)</h1>
+    </header>
+    <div class="note-common-styles__textnote-body">
+      <div class="o-noteContentText">
+        <p>これは無料部分の本文です。誰でも読むことができます。</p>
+        <p>ここから先は有料コンテンツとなります。</p>
+        <!-- 有料部分 — テキスト "ここから先は" が本文中に含まれるため検出される -->
+        <p>__PAYWALL_SECRET_TOKEN__ テキストマーカー経路でブロックされた有料コンテンツ。</p>
+        <p>さらに秘密のコンテンツが続きます。</p>
+      </div>
+    </div>
+  </article>
+</body>
+</html>

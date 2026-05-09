@@ -384,6 +384,42 @@
       word-break: break-word;
     }
     .modal-value a { color: #1a73e8; }
+    /* Support card */
+    .support-contact-block {
+      margin-bottom: 14px;
+    }
+    .support-contact-label {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0 0 2px;
+    }
+    .support-contact-value {
+      font-size: 13px;
+      color: #1f2937;
+    }
+    .support-link-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .support-link-btn {
+      display: inline-block;
+      padding: 8px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #1a73e8;
+      text-decoration: none;
+      cursor: pointer;
+      background: #ffffff;
+    }
+    .support-link-btn:hover { background: #eff6ff; }
+    .version-label {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 14px;
+    }
   </style>
 </head>
 <body>
@@ -528,6 +564,44 @@
     <div id="template-list-area">
       <p style="font-size:13px;color:#94a3b8;">読み込み中…</p>
     </div>
+  </section>
+
+  <section class="card" id="support-card">
+    <h2>サポート</h2>
+    <p class="lead">
+      ご不明な点や不具合がございましたら、下記の連絡先までお気軽にご連絡ください。
+    </p>
+
+    <div class="support-contact-block">
+      <div class="support-contact-label">開発者連絡先</div>
+      <div class="support-contact-value">
+        <a href="mailto:mayele48694062@gmail.com">mayele48694062@gmail.com</a>
+      </div>
+    </div>
+
+    <div class="support-link-row">
+      <a
+        id="report-issue-btn"
+        class="support-link-btn"
+        href="mailto:mayele48694062@gmail.com?subject=note%20%E3%82%A2%E3%83%96%E3%82%B9%E3%83%88%E3%83%A9%E3%82%AF%E3%83%88%20%E4%B8%8D%E5%85%B7%E5%90%88%E5%A0%B1%E5%91%8A&body=%E3%83%90%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3%3A%20"
+      >問題を報告</a>
+      <a
+        id="privacy-policy-link"
+        class="support-link-btn"
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+      >プライバシーポリシー</a>
+      <a
+        id="terms-of-use-link"
+        class="support-link-btn"
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+      >利用規約</a>
+    </div>
+
+    <div class="version-label" id="version-label">バージョン情報を読み込み中…</div>
   </section>
 
   <!-- History detail modal -->

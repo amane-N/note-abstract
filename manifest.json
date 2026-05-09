@@ -30,7 +30,11 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/templates/prompts.json"],
+      "resources": [
+        "src/templates/prompts.json",
+        "docs/privacy-policy.md",
+        "docs/terms-of-use.md"
+      ],
       "matches": ["https://note.com/*"]
     }
   ],

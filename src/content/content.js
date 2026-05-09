@@ -70,7 +70,8 @@
     // 「記事を取得できませんでした」と表示されてしまう。
     if (cachedArticle && cachedArticle.ok) return cachedArticle;
     if (!ns.NoteParser) return { ok: false, reason: 'parser-missing' };
-    const result = ns.NoteParser.extractArticle();
+    // Sprint 10: 厳格モードで抽出。有料境界が検出された場合は抽出を中止する。
+    const result = ns.NoteParser.extractArticle(document, { strict: true });
     if (result && result.ok) cachedArticle = result;
     return result;
   };
@@ -218,9 +219,16 @@
     }
     if (!article || !article.ok) {
       panel.setStage('error');
-      panel.showSummaryFallback(
-        '記事が取得できません。ページを再読み込みしてください。'
-      );
+      // Sprint 10: 有料境界検出時は専用メッセージを表示する。
+      if (article && article.reason === 'paywall-detected') {
+        panel.showSummaryFallback(
+          'この記事は有料記事のため、無料部分の取得を中止しました。購入後に再度お試しください。'
+        );
+      } else {
+        panel.showSummaryFallback(
+          '記事が取得できません。ページを再読み込みしてください。'
+        );
+      }
       return;
     }
 

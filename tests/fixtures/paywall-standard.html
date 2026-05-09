@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>有料記事テスト (標準 .o-noteAreaPaymentWall)</title></head>
+<body>
+  <article>
+    <header>
+      <h1 class="o-noteContentHeader__title">有料記事のタイトル (標準)</h1>
+    </header>
+    <div class="note-common-styles__textnote-body">
+      <div class="o-noteContentText">
+        <p>これは無料部分の本文です。誰でも読むことができます。</p>
+        <p>もう少し無料で読めるテキストがここに続きます。</p>
+        <!-- paywall boundary marker -->
+        <div class="o-noteAreaPaymentWall">ここから先は有料です</div>
+        <!-- 有料部分 — 絶対に抽出されてはいけない -->
+        <p>__PAYWALL_SECRET_TOKEN__ これは有料部分のコンテンツです。</p>
+        <p>さらに秘密のコンテンツが続きます。</p>
+      </div>
+    </div>
+  </article>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>有料記事テスト (data-testid)</title></head>
+<body>
+  <article>
+    <header>
+      <h1 class="o-noteContentHeader__title">有料記事のタイトル (data-testid)</h1>
+    </header>
+    <div class="note-common-styles__textnote-body">
+      <div class="o-noteContentText">
+        <p>これは無料部分の本文です。誰でも読むことができます。</p>
+        <!-- paywall boundary marker: data-testid="paywall-boundary" -->
+        <div data-testid="paywall-boundary">ここから先は購入が必要です</div>
+        <!-- 有料部分 — 絶対に抽出されてはいけない -->
+        <p>__PAYWALL_SECRET_TOKEN__ data-testid 経路でブロックされた有料コンテンツ。</p>
+        <p>さらに秘密のコンテンツが続きます。</p>
+      </div>
+    </div>
+  </article>
+</body>
+</html>
