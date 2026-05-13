@@ -72,8 +72,14 @@ Productivity
 
 amane.n4802@gmail.com
 
+## ホームページ URL
+
+https://amane-n.github.io/note-abstract/
+
 ## プライバシーポリシー URL
 
-リポジトリを GitHub 等で公開後、GitHub Pages または raw URL に置換してください。
+https://amane-n.github.io/note-abstract/privacy-policy.html
 
-ローカル参照: [docs/privacy-policy.md](privacy-policy.md)
+## 利用規約 URL
+
+https://amane-n.github.io/note-abstract/terms-of-use.html
