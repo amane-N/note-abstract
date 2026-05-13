@@ -932,7 +932,7 @@
           const body = encodeURIComponent(
             `バージョン: ${version}\nChrome バージョン: \n\n【不具合の内容】\n\n【再現手順】\n\n`
           );
-          reportBtn.href = `mailto:mayele48694062@gmail.com?subject=${subject}&body=${body}`;
+          reportBtn.href = `mailto:amane.n4802@gmail.com?subject=${subject}&body=${body}`;
         } catch (_) {
           // href はデフォルト値のまま
         }

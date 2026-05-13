@@ -70,7 +70,7 @@ Productivity
 
 ## サポート連絡先
 
-mayele48694062@gmail.com
+amane.n4802@gmail.com
 
 ## プライバシーポリシー URL
 

@@ -81,7 +81,7 @@ Copyright (c) 2026 Amane.N
 
 不具合・ご要望は Issue またはメールにてご連絡ください。
 
-Email: mayele48694062@gmail.com
+Email: amane.n4802@gmail.com
 
 ## 開発状況
 
